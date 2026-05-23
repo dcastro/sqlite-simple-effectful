@@ -69,6 +69,18 @@ foldNamed q params initialState action =
         S.foldNamed conn q params initialState \a row ->
           unlift $ action a row
 
+execute :: (SQLite :> es) => (ToRow q) => Query -> q -> Eff es ()
+execute q params = withConnection \conn -> unsafeEff_ $ S.execute conn q params
+
+execute_ :: (SQLite :> es) => Query -> Eff es ()
+execute_ q = withConnection \conn -> unsafeEff_ $ S.execute_ conn q
+
+executeMany :: (SQLite :> es) => (ToRow q) => Query -> [q] -> Eff es ()
+executeMany q params = withConnection \conn -> unsafeEff_ $ S.executeMany conn q params
+
+executeNamed :: (SQLite :> es) => Query -> [NamedParam] -> Eff es ()
+executeNamed q params = withConnection \conn -> unsafeEff_ $ S.executeNamed conn q params
+
 {-
 
 query_ :: FromRow r => Connection -> Query -> IO [r]
