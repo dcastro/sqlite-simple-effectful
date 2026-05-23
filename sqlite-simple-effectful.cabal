@@ -27,7 +27,8 @@ source-repository head
 
 library
   exposed-modules:
-      Lib
+      Effectful.SQLite.Simple
+      Effectful.SQLite.Simple.Internal
   other-modules:
       Paths_sqlite_simple_effectful
   autogen-modules:
@@ -37,9 +38,12 @@ library
   default-extensions:
       BlockArguments
       StrictData
+      TypeFamilies
   ghc-options: -Weverything -Wno-name-shadowing -Wno-missing-exported-signatures -Wno-missing-import-lists -Wno-missing-export-lists -Wno-missed-specialisations -Wno-all-missed-specialisations -Wno-unsafe -Wno-safe -Wno-missing-local-signatures -Wno-monomorphism-restriction -Wno-implicit-prelude -Wno-prepositive-qualified-module -Wno-missing-safe-haskell-mode -Wno-missing-kind-signatures -Wno-missing-role-annotations
   build-depends:
       base
+    , effectful-core
+    , sqlite-simple
   default-language: GHC2024
 
 test-suite sqlite-simple-effectful-test
@@ -54,6 +58,7 @@ test-suite sqlite-simple-effectful-test
   default-extensions:
       BlockArguments
       StrictData
+      TypeFamilies
   ghc-options: -Weverything -Wno-name-shadowing -Wno-missing-exported-signatures -Wno-missing-import-lists -Wno-missing-export-lists -Wno-missed-specialisations -Wno-all-missed-specialisations -Wno-unsafe -Wno-safe -Wno-missing-local-signatures -Wno-monomorphism-restriction -Wno-implicit-prelude -Wno-prepositive-qualified-module -Wno-missing-safe-haskell-mode -Wno-missing-kind-signatures -Wno-missing-role-annotations -threaded -rtsopts -with-rtsopts=-N
   build-depends:
       base
