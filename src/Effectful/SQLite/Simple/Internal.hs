@@ -46,6 +46,29 @@ changes = withConnection $ unsafeEff_ . S.changes
 totalChanges :: (SQLite :> es) => Eff es Int
 totalChanges = withConnection $ unsafeEff_ . S.totalChanges
 
+fold :: forall es row params a. (SQLite :> es) => (FromRow row, ToRow params) => Query -> params -> a -> (a -> row -> Eff es a) -> Eff es a
+fold q params initialState action = withConnection \conn -> do
+  unsafeEff \env -> do
+    seqUnliftIO env \unlift -> do
+      S.fold conn q params initialState \a row ->
+        unlift $ action a row
+
+fold_ :: (SQLite :> es) => (FromRow row) => Query -> a -> (a -> row -> Eff es a) -> Eff es a
+fold_ q initialState action =
+  withConnection \conn -> do
+    unsafeEff \env -> do
+      seqUnliftIO env \unlift -> do
+        S.fold_ conn q initialState \a row ->
+          unlift $ action a row
+
+foldNamed :: (SQLite :> es) => (FromRow row) => Query -> [NamedParam] -> a -> (a -> row -> Eff es a) -> Eff es a
+foldNamed q params initialState action =
+  withConnection \conn -> do
+    unsafeEff \env -> do
+      seqUnliftIO env \unlift -> do
+        S.foldNamed conn q params initialState \a row ->
+          unlift $ action a row
+
 {-
 
 query_ :: FromRow r => Connection -> Query -> IO [r]
