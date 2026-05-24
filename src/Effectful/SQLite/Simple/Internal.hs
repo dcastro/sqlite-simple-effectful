@@ -7,8 +7,12 @@ import Database.SQLite.Simple (Connection, FromRow, NamedParam, Query, ToRow)
 import Database.SQLite.Simple qualified as S
 import Database.SQLite.Simple.FromRow (RowParser)
 import Effectful
-import Effectful.Dispatch.Dynamic (send)
+import Effectful.Concurrent (Concurrent)
+import Effectful.Concurrent.MVar (MVar)
+import Effectful.Concurrent.MVar qualified as MVar
+import Effectful.Dispatch.Dynamic (interpret, localSeqUnlift, send)
 import Effectful.Dispatch.Static (seqUnliftIO, unsafeEff, unsafeEff_)
+import GHC.Stack (HasCallStack)
 
 ----------------------------------------------------------------------------
 -- Effect
@@ -108,6 +112,31 @@ withSavepoint :: (SQLite :> es) => Connection -> Eff es a -> Eff es a
 withSavepoint conn action =
   unsafeEffWithUnlift \unlift -> do
     S.withSavepoint conn $ unlift action
+
+----------------------------------------------------------------------------
+-- Interpreters
+----------------------------------------------------------------------------
+
+runSQLiteUnsync ::
+  (HasCallStack, IOE :> es) =>
+  Connection -> Eff (SQLite ': es) a -> Eff es a
+runSQLiteUnsync conn =
+  interpret \env -> \case
+    WithConnection f ->
+      localSeqUnlift env \unlift -> unlift $ f conn
+
+runSQLiteSync ::
+  (HasCallStack, IOE :> es, Concurrent :> es) =>
+  MVar Connection -> Eff (SQLite ': es) a -> Eff es a
+runSQLiteSync connVar action = do
+  interpret
+    ( \env -> \case
+        WithConnection f ->
+          localSeqUnlift env \unlift -> do
+            MVar.withMVar connVar \conn -> do
+              unlift $ f conn
+    )
+    action
 
 ----------------------------------------------------------------------------
 -- Utils
