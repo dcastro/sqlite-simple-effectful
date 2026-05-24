@@ -37,8 +37,8 @@ Instead, I opted to:
 
 ## `IOE`
 
-In `effectful-postgresql`, every function requires `IOE`.
-To avoid this, we internally used `unsafeEff`; this is actually safe, as long as all the `run*` operations require `IOE`.
+In `effectful-postgresql`, every SQL operation requires `IOE`.
+To avoid this, we internally used `unsafeEff`; this is actually safe, as long as all the `run*` interpreters require `IOE`.
 
 ## SQLite :> es
 

@@ -13,6 +13,8 @@ import Effectful.Concurrent.MVar qualified as MVar
 import Effectful.Dispatch.Dynamic (interpret, localSeqUnlift, send)
 import Effectful.Dispatch.Static (seqUnliftIO, unsafeEff, unsafeEff_)
 import GHC.Stack (HasCallStack)
+import UnliftIO.Pool (Pool)
+import UnliftIO.Pool qualified as Pool
 
 ----------------------------------------------------------------------------
 -- Effect
@@ -134,6 +136,19 @@ runSQLiteSync connVar action = do
         WithConnection f ->
           localSeqUnlift env \unlift -> do
             MVar.withMVar connVar \conn -> do
+              unlift $ f conn
+    )
+    action
+
+runSQLitePool ::
+  (HasCallStack, IOE :> es) =>
+  Pool Connection -> Eff (SQLite ': es) a -> Eff es a
+runSQLitePool pool action = do
+  interpret
+    ( \env -> \case
+        WithConnection f ->
+          localSeqUnlift env \unlift -> do
+            Pool.withResource pool \conn -> do
               unlift $ f conn
     )
     action

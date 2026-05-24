@@ -45,6 +45,7 @@ library
     , effectful
     , effectful-core
     , sqlite-simple
+    , unliftio-pool
   default-language: GHC2024
 
 test-suite sqlite-simple-effectful-test
