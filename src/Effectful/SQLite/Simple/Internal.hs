@@ -10,6 +10,10 @@ import Effectful
 import Effectful.Dispatch.Dynamic (send)
 import Effectful.Dispatch.Static (seqUnliftIO, unsafeEff, unsafeEff_)
 
+----------------------------------------------------------------------------
+-- Effect
+----------------------------------------------------------------------------
+
 {-
 Notes:
   * We're using `unsafeEff_` to avoid having `IOE` show up in every type sig.
@@ -26,6 +30,10 @@ type instance DispatchOf SQLite = 'Dynamic
 
 withConnection :: (SQLite :> es) => (Connection -> Eff es a) -> Eff es a
 withConnection = send . WithConnection
+
+----------------------------------------------------------------------------
+-- Operations
+----------------------------------------------------------------------------
 
 query :: (SQLite :> es) => (ToRow q, FromRow r) => Connection -> Query -> q -> Eff es [r]
 query conn q params = unsafeEff_ $ S.query conn q params
@@ -53,24 +61,21 @@ totalChanges = unsafeEff_ . S.totalChanges
 
 fold :: (SQLite :> es) => (FromRow row, ToRow params) => Connection -> Query -> params -> a -> (a -> row -> Eff es a) -> Eff es a
 fold conn q params initialState action =
-  unsafeEff \env -> do
-    seqUnliftIO env \unlift -> do
-      S.fold conn q params initialState \a row ->
-        unlift $ action a row
+  unsafeEffWithUnlift \unlift -> do
+    S.fold conn q params initialState \a row ->
+      unlift $ action a row
 
 fold_ :: (SQLite :> es) => (FromRow row) => Connection -> Query -> a -> (a -> row -> Eff es a) -> Eff es a
 fold_ conn q initialState action =
-  unsafeEff \env -> do
-    seqUnliftIO env \unlift -> do
-      S.fold_ conn q initialState \a row ->
-        unlift $ action a row
+  unsafeEffWithUnlift \unlift -> do
+    S.fold_ conn q initialState \a row ->
+      unlift $ action a row
 
 foldNamed :: (SQLite :> es) => (FromRow row) => Connection -> Query -> [NamedParam] -> a -> (a -> row -> Eff es a) -> Eff es a
 foldNamed conn q params initialState action =
-  unsafeEff \env -> do
-    seqUnliftIO env \unlift -> do
-      S.foldNamed conn q params initialState \a row ->
-        unlift $ action a row
+  unsafeEffWithUnlift \unlift -> do
+    S.foldNamed conn q params initialState \a row ->
+      unlift $ action a row
 
 execute :: (SQLite :> es) => (ToRow q) => Connection -> Query -> q -> Eff es ()
 execute conn q params = unsafeEff_ $ S.execute conn q params
@@ -83,6 +88,36 @@ executeMany conn q params = unsafeEff_ $ S.executeMany conn q params
 
 executeNamed :: (SQLite :> es) => Connection -> Query -> [NamedParam] -> Eff es ()
 executeNamed conn q params = unsafeEff_ $ S.executeNamed conn q params
+
+withTransaction :: (SQLite :> es) => Connection -> Eff es a -> Eff es a
+withTransaction conn action =
+  unsafeEffWithUnlift \unlift -> do
+    S.withTransaction conn $ unlift action
+
+withImmediateTransaction :: (SQLite :> es) => Connection -> Eff es a -> Eff es a
+withImmediateTransaction conn action =
+  unsafeEffWithUnlift \unlift -> do
+    S.withImmediateTransaction conn $ unlift action
+
+withExclusiveTransaction :: (SQLite :> es) => Connection -> Eff es a -> Eff es a
+withExclusiveTransaction conn action =
+  unsafeEffWithUnlift \unlift -> do
+    S.withExclusiveTransaction conn $ unlift action
+
+withSavepoint :: (SQLite :> es) => Connection -> Eff es a -> Eff es a
+withSavepoint conn action =
+  unsafeEffWithUnlift \unlift -> do
+    S.withSavepoint conn $ unlift action
+
+----------------------------------------------------------------------------
+-- Utils
+----------------------------------------------------------------------------
+
+unsafeEffWithUnlift :: forall a es. (SQLite :> es) => ((forall x. Eff es x -> IO x) -> IO a) -> Eff es a
+unsafeEffWithUnlift action =
+  unsafeEff \env -> do
+    seqUnliftIO env \unlift -> do
+      action unlift
 
 {-
 

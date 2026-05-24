@@ -2,13 +2,15 @@
 
 ## Implicit connection
 
-I considered using an approach similar to `effectful-postgresql`:
+I considered using an approach similar to `effectful-postgresql`.
+By default, the user is meant to use `withConnection`, and then pass the connection to the raw functions from `postgresql-simple`.
+But it also has a more convenient mode, where the user:
 
-* The effect has a single `withConnection` operation (which the user is not meant to use directly)
-* and every other sqlite operation (query, execute, etc) goes through it.
+* Does not have to use `withConnection`
+* Use the functions from `Effectful.PostgreSQL` (query, execute, etc) which internally call `withConnection` individually.
 
-There are some issues with this approach:
-* When running multiple sqlite statements, this design would imply repeatedly acquiring and releasing a connection from the pool, unnecessarily.
+There are some issues with this 2nd mode:
+* When running multiple sqlite statements with a "pooled" interpreter, this design would imply repeatedly acquiring and releasing a connection from the pool, unnecessarily.
 * This design would not allow running the effect by creating a single connection that is guarded by an `MVar`. E.g.:
     * Here, you could argue that `query` acquires the MVar, performs the query, then releases it:
       ```hs11
@@ -20,6 +22,12 @@ There are some issues with this approach:
       withTransaction do
         res <- query "SELECT ..."
       ```
+* Transactions and their operations can potentially be run with different connections:
+  In the example below, `withTransaction` and `query` will both fetch a connection from the pool, and end up getting potentially different connections.
+    ```hs
+    withTransaction do
+      res <- query "SELECT ..."
+    ```
 
 Instead, I opted to:
 
