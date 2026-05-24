@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+
 module Effectful.SQLite.Simple.Internal where
 
 import Data.Int (Int64)
@@ -11,7 +13,10 @@ import Effectful.Dispatch.Static (seqUnliftIO, unsafeEff, unsafeEff_)
 {-
 Notes:
   * We're using `unsafeEff_` to avoid having `IOE` show up in every type sig.
-    This is fine, _as long as_ we ensure all the `run*` functions require `IOE`.
+    This is fine, _as long as_:
+      * we ensure all the `run*` functions require `IOE`.
+      * All operations must have the `SQLite :> es` constraint (even if GHC considers it redundant),
+        to ensure they cannot be run with `runPureEff` and bypass the `IOE` requirement.
 
 -}
 data SQLite :: Effect where
@@ -22,64 +27,62 @@ type instance DispatchOf SQLite = 'Dynamic
 withConnection :: (SQLite :> es) => (Connection -> Eff es a) -> Eff es a
 withConnection = send . WithConnection
 
-query :: (SQLite :> es) => (ToRow q, FromRow r) => Query -> q -> Eff es [r]
-query q params = withConnection \conn -> unsafeEff_ $ S.query conn q params
+query :: (SQLite :> es) => (ToRow q, FromRow r) => Connection -> Query -> q -> Eff es [r]
+query conn q params = unsafeEff_ $ S.query conn q params
 
-query_ :: (SQLite :> es) => (FromRow r) => Query -> Eff es [r]
-query_ q = withConnection \conn -> unsafeEff_ $ S.query_ conn q
+query_ :: (SQLite :> es) => (FromRow r) => Connection -> Query -> Eff es [r]
+query_ conn q = unsafeEff_ $ S.query_ conn q
 
-queryWith :: (SQLite :> es) => (ToRow q) => RowParser r -> Query -> q -> Eff es [r]
-queryWith parser q params = withConnection \conn -> unsafeEff_ $ S.queryWith parser conn q params
+queryWith :: (SQLite :> es) => (ToRow q) => RowParser r -> Connection -> Query -> q -> Eff es [r]
+queryWith parser conn q params = unsafeEff_ $ S.queryWith parser conn q params
 
-queryWith_ :: (SQLite :> es) => RowParser r -> Query -> Eff es [r]
-queryWith_ parser q = withConnection \conn -> unsafeEff_ $ S.queryWith_ parser conn q
+queryWith_ :: (SQLite :> es) => RowParser r -> Connection -> Query -> Eff es [r]
+queryWith_ parser conn q = unsafeEff_ $ S.queryWith_ parser conn q
 
-queryNamed :: (SQLite :> es) => (FromRow r) => Query -> [NamedParam] -> Eff es [r]
-queryNamed q params = withConnection \conn -> unsafeEff_ $ S.queryNamed conn q params
+queryNamed :: (SQLite :> es) => (FromRow r) => Connection -> Query -> [NamedParam] -> Eff es [r]
+queryNamed conn q params = unsafeEff_ $ S.queryNamed conn q params
 
-lastInsertRowId :: (SQLite :> es) => Eff es Int64
-lastInsertRowId = withConnection $ unsafeEff_ . S.lastInsertRowId
+lastInsertRowId :: (SQLite :> es) => Connection -> Eff es Int64
+lastInsertRowId = unsafeEff_ . S.lastInsertRowId
 
-changes :: (SQLite :> es) => Eff es Int
-changes = withConnection $ unsafeEff_ . S.changes
+changes :: (SQLite :> es) => Connection -> Eff es Int
+changes = unsafeEff_ . S.changes
 
-totalChanges :: (SQLite :> es) => Eff es Int
-totalChanges = withConnection $ unsafeEff_ . S.totalChanges
+totalChanges :: (SQLite :> es) => Connection -> Eff es Int
+totalChanges = unsafeEff_ . S.totalChanges
 
-fold :: forall es row params a. (SQLite :> es) => (FromRow row, ToRow params) => Query -> params -> a -> (a -> row -> Eff es a) -> Eff es a
-fold q params initialState action = withConnection \conn -> do
+fold :: (SQLite :> es) => (FromRow row, ToRow params) => Connection -> Query -> params -> a -> (a -> row -> Eff es a) -> Eff es a
+fold conn q params initialState action =
   unsafeEff \env -> do
     seqUnliftIO env \unlift -> do
       S.fold conn q params initialState \a row ->
         unlift $ action a row
 
-fold_ :: (SQLite :> es) => (FromRow row) => Query -> a -> (a -> row -> Eff es a) -> Eff es a
-fold_ q initialState action =
-  withConnection \conn -> do
-    unsafeEff \env -> do
-      seqUnliftIO env \unlift -> do
-        S.fold_ conn q initialState \a row ->
-          unlift $ action a row
+fold_ :: (SQLite :> es) => (FromRow row) => Connection -> Query -> a -> (a -> row -> Eff es a) -> Eff es a
+fold_ conn q initialState action =
+  unsafeEff \env -> do
+    seqUnliftIO env \unlift -> do
+      S.fold_ conn q initialState \a row ->
+        unlift $ action a row
 
-foldNamed :: (SQLite :> es) => (FromRow row) => Query -> [NamedParam] -> a -> (a -> row -> Eff es a) -> Eff es a
-foldNamed q params initialState action =
-  withConnection \conn -> do
-    unsafeEff \env -> do
-      seqUnliftIO env \unlift -> do
-        S.foldNamed conn q params initialState \a row ->
-          unlift $ action a row
+foldNamed :: (SQLite :> es) => (FromRow row) => Connection -> Query -> [NamedParam] -> a -> (a -> row -> Eff es a) -> Eff es a
+foldNamed conn q params initialState action =
+  unsafeEff \env -> do
+    seqUnliftIO env \unlift -> do
+      S.foldNamed conn q params initialState \a row ->
+        unlift $ action a row
 
-execute :: (SQLite :> es) => (ToRow q) => Query -> q -> Eff es ()
-execute q params = withConnection \conn -> unsafeEff_ $ S.execute conn q params
+execute :: (SQLite :> es) => (ToRow q) => Connection -> Query -> q -> Eff es ()
+execute conn q params = unsafeEff_ $ S.execute conn q params
 
-execute_ :: (SQLite :> es) => Query -> Eff es ()
-execute_ q = withConnection \conn -> unsafeEff_ $ S.execute_ conn q
+execute_ :: (SQLite :> es) => Connection -> Query -> Eff es ()
+execute_ conn q = unsafeEff_ $ S.execute_ conn q
 
-executeMany :: (SQLite :> es) => (ToRow q) => Query -> [q] -> Eff es ()
-executeMany q params = withConnection \conn -> unsafeEff_ $ S.executeMany conn q params
+executeMany :: (SQLite :> es) => (ToRow q) => Connection -> Query -> [q] -> Eff es ()
+executeMany conn q params = unsafeEff_ $ S.executeMany conn q params
 
-executeNamed :: (SQLite :> es) => Query -> [NamedParam] -> Eff es ()
-executeNamed q params = withConnection \conn -> unsafeEff_ $ S.executeNamed conn q params
+executeNamed :: (SQLite :> es) => Connection -> Query -> [NamedParam] -> Eff es ()
+executeNamed conn q params = unsafeEff_ $ S.executeNamed conn q params
 
 {-
 
