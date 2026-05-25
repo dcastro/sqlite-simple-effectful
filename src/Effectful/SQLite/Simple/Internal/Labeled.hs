@@ -1,0 +1,133 @@
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE OverloadedRecordDot #-}
+{-# OPTIONS_GHC -Wno-redundant-constraints #-}
+{-# OPTIONS_HADDOCK not-home #-}
+
+module Effectful.SQLite.Simple.Internal.Labeled where
+
+import Data.Int (Int64)
+import Database.SQLite.Simple (FromRow, NamedParam, Query, ToRow)
+import Database.SQLite.Simple qualified as S
+import Database.SQLite.Simple.FromRow (RowParser)
+import Effectful
+import Effectful.Concurrent (Concurrent)
+import Effectful.Concurrent.MVar (MVar)
+import Effectful.Dispatch.Dynamic (send)
+import Effectful.Dispatch.Static (seqUnliftIO, unsafeEff, unsafeEff_)
+import Effectful.Labeled
+import Effectful.SQLite.Simple.Internal (SQLite)
+import Effectful.SQLite.Simple.Internal qualified as Internal
+import GHC.Stack (HasCallStack)
+
+----------------------------------------------------------------------------
+-- Effect
+----------------------------------------------------------------------------
+
+newtype Connection (label :: k) = Connection {getConn :: S.Connection}
+
+withConnection :: forall label es a. (Labeled label SQLite :> es) => (Connection label -> Eff es a) -> Eff es a
+withConnection use = send $ Labeled @label $ Internal.WithConnection \conn -> use (Connection conn)
+
+----------------------------------------------------------------------------
+-- Operations
+----------------------------------------------------------------------------
+
+query :: (Labeled label SQLite :> es) => (ToRow q, FromRow r) => Connection label -> Query -> q -> Eff es [r]
+query conn q params = unsafeEff_ $ S.query conn.getConn q params
+
+query_ :: (Labeled label SQLite :> es) => (FromRow r) => Connection label -> Query -> Eff es [r]
+query_ conn q = unsafeEff_ $ S.query_ conn.getConn q
+
+queryWith :: (Labeled label SQLite :> es) => (ToRow q) => RowParser r -> Connection label -> Query -> q -> Eff es [r]
+queryWith parser conn q params = unsafeEff_ $ S.queryWith parser conn.getConn q params
+
+queryWith_ :: (Labeled label SQLite :> es) => RowParser r -> Connection label -> Query -> Eff es [r]
+queryWith_ parser conn q = unsafeEff_ $ S.queryWith_ parser conn.getConn q
+
+queryNamed :: (Labeled label SQLite :> es) => (FromRow r) => Connection label -> Query -> [NamedParam] -> Eff es [r]
+queryNamed conn q params = unsafeEff_ $ S.queryNamed conn.getConn q params
+
+lastInsertRowId :: (Labeled label SQLite :> es) => Connection label -> Eff es Int64
+lastInsertRowId = unsafeEff_ . S.lastInsertRowId . getConn
+
+changes :: (Labeled label SQLite :> es) => Connection label -> Eff es Int
+changes = unsafeEff_ . S.changes . getConn
+
+totalChanges :: (Labeled label SQLite :> es) => Connection label -> Eff es Int
+totalChanges = unsafeEff_ . S.totalChanges . getConn
+
+fold :: forall label row params a es. (Labeled label SQLite :> es, FromRow row, ToRow params) => Connection label -> Query -> params -> a -> (a -> row -> Eff es a) -> Eff es a
+fold conn q params initialState action =
+  unsafeEffWithUnlift @label \unlift -> do
+    S.fold conn.getConn q params initialState \a row ->
+      unlift $ action a row
+
+fold_ :: forall label row a es. (Labeled label SQLite :> es) => (FromRow row) => Connection label -> Query -> a -> (a -> row -> Eff es a) -> Eff es a
+fold_ conn q initialState action =
+  unsafeEffWithUnlift @label \unlift -> do
+    S.fold_ conn.getConn q initialState \a row ->
+      unlift $ action a row
+
+foldNamed :: forall label row a es. (Labeled label SQLite :> es) => (FromRow row) => Connection label -> Query -> [NamedParam] -> a -> (a -> row -> Eff es a) -> Eff es a
+foldNamed conn q params initialState action =
+  unsafeEffWithUnlift @label \unlift -> do
+    S.foldNamed conn.getConn q params initialState \a row ->
+      unlift $ action a row
+
+execute :: (Labeled label SQLite :> es) => (ToRow q) => Connection label -> Query -> q -> Eff es ()
+execute conn q params = unsafeEff_ $ S.execute conn.getConn q params
+
+execute_ :: (Labeled label SQLite :> es) => Connection label -> Query -> Eff es ()
+execute_ conn q = unsafeEff_ $ S.execute_ conn.getConn q
+
+executeMany :: (Labeled label SQLite :> es) => (ToRow q) => Connection label -> Query -> [q] -> Eff es ()
+executeMany conn q params = unsafeEff_ $ S.executeMany conn.getConn q params
+
+executeNamed :: (Labeled label SQLite :> es) => Connection label -> Query -> [NamedParam] -> Eff es ()
+executeNamed conn q params = unsafeEff_ $ S.executeNamed conn.getConn q params
+
+withTransaction :: forall label a es. (Labeled label SQLite :> es) => Connection label -> Eff es a -> Eff es a
+withTransaction conn action =
+  unsafeEffWithUnlift @label \unlift -> do
+    S.withTransaction conn.getConn $ unlift action
+
+withImmediateTransaction :: forall label a es. (Labeled label SQLite :> es) => Connection label -> Eff es a -> Eff es a
+withImmediateTransaction conn action =
+  unsafeEffWithUnlift @label \unlift -> do
+    S.withImmediateTransaction conn.getConn $ unlift action
+
+withExclusiveTransaction :: forall label a es. (Labeled label SQLite :> es) => Connection label -> Eff es a -> Eff es a
+withExclusiveTransaction conn action =
+  unsafeEffWithUnlift @label \unlift -> do
+    S.withExclusiveTransaction conn.getConn $ unlift action
+
+withSavepoint :: forall label a es. (Labeled label SQLite :> es) => Connection label -> Eff es a -> Eff es a
+withSavepoint conn action =
+  unsafeEffWithUnlift @label \unlift -> do
+    S.withSavepoint conn.getConn $ unlift action
+
+----------------------------------------------------------------------------
+-- Interpreters
+----------------------------------------------------------------------------
+
+runSQLiteUnsync ::
+  forall label es a.
+  (HasCallStack, IOE :> es) =>
+  S.Connection -> Eff (Labeled label SQLite ': es) a -> Eff es a
+runSQLiteUnsync = runLabeled @label . Internal.runSQLiteUnsync
+
+runSQLiteSync ::
+  forall label es a.
+  (HasCallStack, IOE :> es, Concurrent :> es) =>
+  MVar S.Connection -> Eff (Labeled label SQLite ': es) a -> Eff es a
+runSQLiteSync = runLabeled @label . Internal.runSQLiteSync
+
+----------------------------------------------------------------------------
+-- Utils
+----------------------------------------------------------------------------
+
+unsafeEffWithUnlift :: forall label a es. (Labeled label SQLite :> es) => ((forall x. Eff es x -> IO x) -> IO a) -> Eff es a
+unsafeEffWithUnlift action =
+  unsafeEff \env -> do
+    seqUnliftIO env \unlift -> do
+      action unlift

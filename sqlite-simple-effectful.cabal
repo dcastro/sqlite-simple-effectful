@@ -29,6 +29,7 @@ library
   exposed-modules:
       Effectful.SQLite.Simple
       Effectful.SQLite.Simple.Internal
+      Effectful.SQLite.Simple.Internal.Labeled
   other-modules:
       Paths_sqlite_simple_effectful
   autogen-modules:
