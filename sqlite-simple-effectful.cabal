@@ -49,6 +49,29 @@ library
     , unliftio-pool
   default-language: GHC2024
 
+executable sqlite-simple-effectful-examples
+  main-is: Examples.hs
+  other-modules:
+      Paths_sqlite_simple_effectful
+  autogen-modules:
+      Paths_sqlite_simple_effectful
+  hs-source-dirs:
+      examples
+  default-extensions:
+      BlockArguments
+      StrictData
+      TypeFamilies
+  ghc-options: -Weverything -Wno-name-shadowing -Wno-missing-exported-signatures -Wno-missing-import-lists -Wno-missing-export-lists -Wno-missed-specialisations -Wno-all-missed-specialisations -Wno-unsafe -Wno-safe -Wno-missing-local-signatures -Wno-monomorphism-restriction -Wno-implicit-prelude -Wno-prepositive-qualified-module -Wno-missing-safe-haskell-mode -Wno-missing-kind-signatures -Wno-missing-role-annotations -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      async
+    , base
+    , effectful
+    , effectful-core
+    , sqlite-simple
+    , sqlite-simple-effectful
+    , unliftio-pool
+  default-language: GHC2024
+
 test-suite sqlite-simple-effectful-test
   type: exitcode-stdio-1.0
   main-is: Spec.hs
