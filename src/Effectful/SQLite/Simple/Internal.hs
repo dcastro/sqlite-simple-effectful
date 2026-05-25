@@ -1,4 +1,5 @@
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
+{-# OPTIONS_HADDOCK not-home #-}
 
 module Effectful.SQLite.Simple.Internal where
 
@@ -13,11 +14,21 @@ import Effectful.Concurrent.MVar qualified as MVar
 import Effectful.Dispatch.Dynamic (interpret, localSeqUnlift, send)
 import Effectful.Dispatch.Static (seqUnliftIO, unsafeEff, unsafeEff_)
 import GHC.Stack (HasCallStack)
-import UnliftIO.Pool (Pool)
-import UnliftIO.Pool qualified as Pool
 
 ----------------------------------------------------------------------------
 -- Effect
+----------------------------------------------------------------------------
+
+data SQLite :: Effect where
+  WithConnection :: (Connection -> m a) -> SQLite m a
+
+type instance DispatchOf SQLite = 'Dynamic
+
+withConnection :: (HasCallStack, SQLite :> es) => (Connection -> Eff es a) -> Eff es a
+withConnection = send . WithConnection
+
+----------------------------------------------------------------------------
+-- Operations
 ----------------------------------------------------------------------------
 
 {-
@@ -29,17 +40,6 @@ Notes:
         to ensure they cannot be run with `runPureEff` and bypass the `IOE` requirement.
 
 -}
-data SQLite :: Effect where
-  WithConnection :: (Connection -> m a) -> SQLite m a
-
-type instance DispatchOf SQLite = 'Dynamic
-
-withConnection :: (SQLite :> es) => (Connection -> Eff es a) -> Eff es a
-withConnection = send . WithConnection
-
-----------------------------------------------------------------------------
--- Operations
-----------------------------------------------------------------------------
 
 query :: (SQLite :> es) => (ToRow q, FromRow r) => Connection -> Query -> q -> Eff es [r]
 query conn q params = unsafeEff_ $ S.query conn q params
@@ -136,19 +136,6 @@ runSQLiteSync connVar action = do
         WithConnection f ->
           localSeqUnlift env \unlift -> do
             MVar.withMVar connVar \conn -> do
-              unlift $ f conn
-    )
-    action
-
-runSQLitePool ::
-  (HasCallStack, IOE :> es) =>
-  Pool Connection -> Eff (SQLite ': es) a -> Eff es a
-runSQLitePool pool action = do
-  interpret
-    ( \env -> \case
-        WithConnection f ->
-          localSeqUnlift env \unlift -> do
-            Pool.withResource pool \conn -> do
               unlift $ f conn
     )
     action
