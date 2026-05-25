@@ -30,6 +30,7 @@ library
       Effectful.SQLite.Simple
       Effectful.SQLite.Simple.Internal
       Effectful.SQLite.Simple.Internal.Labeled
+      Effectful.SQLite.Simple.Internal.RW
   other-modules:
       Paths_sqlite_simple_effectful
   autogen-modules:

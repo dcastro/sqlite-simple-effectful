@@ -52,3 +52,19 @@ which would fail because they internally use `unsafeEff_` and thus can only be r
 lastInsertRowId :: (SQLite :> es) => Connection -> Eff es Int64
 lastInsertRowId = unsafeEff_ . S.lastInsertRowId
 ```
+
+## Concurrency
+
+While SQLite does technically support multiple concurrent connections (assuming [multi-threaded or serialized modes][threading-modes]),
+SQLite will still serialize "write" operations.
+
+However, write contention at the SQLite level is known to quickly [degrade performance][sqlite-perf].
+It is advisable to serialize write operations at the application level, rather than at the SQLite level.
+
+For this reason:
+* We don't provide an interpreter backed by a single `Pool Connection`, as using multiple connections to run write operations would increase contention.
+* We provide an interpreter backed by 2 pools: one for write operations, with a fixed capacity of 1, and another for read operations, with a configurable capacity.
+
+
+[sqlite-perf]: https://emschwartz.me/psa-your-sqlite-connection-pool-might-be-ruining-your-write-performance/
+[threading-modes]: https://sqlite.org/threadsafe.html
