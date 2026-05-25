@@ -8,9 +8,10 @@ import Database.SQLite.Simple (FromRow, NamedParam, Query, ToRow)
 import Database.SQLite.Simple qualified as S
 import Database.SQLite.Simple.FromRow (RowParser)
 import Effectful
-import Effectful.Dispatch.Dynamic (send)
+import Effectful.Dispatch.Dynamic (interpret, localSeqUnlift, send)
 import Effectful.Dispatch.Static (seqUnliftIO, unsafeEff, unsafeEff_)
 import GHC.Stack (HasCallStack)
+import UnliftIO.Pool qualified as Pool
 
 ----------------------------------------------------------------------------
 -- Effect
@@ -113,6 +114,67 @@ withSavepoint conn action =
 ----------------------------------------------------------------------------
 -- Interpreters
 ----------------------------------------------------------------------------
+
+data Pools = Pools
+  { readPool :: Pool.Pool (Connection 'Read),
+    writePool :: Pool.Pool (Connection 'Write)
+  }
+
+newPools :: (MonadUnliftIO m) => PoolsConfig -> m Pools
+newPools (PoolsConfig readPoolConfig writePoolConfig) = do
+  readPool <- Pool.newPool readPoolConfig
+  writePool <- Pool.newPool writePoolConfig
+  pure Pools {readPool, writePool}
+
+data PoolsConfig = PoolsConfig
+  { readPoolConfig :: Pool.PoolConfig (Connection 'Read),
+    writePoolConfig :: Pool.PoolConfig (Connection 'Write)
+  }
+
+newPoolsConfig ::
+  (MonadUnliftIO m) =>
+  -- | The action to create a new connection for reading from the database.
+  m S.Connection ->
+  -- | The number of seconds for which an unused read connection is kept around. The smallest acceptable value is 0.5.
+  --
+  -- Note: the elapsed time before destroying a connection may be a little longer than requested, as the collector thread wakes at 1-second intervals.
+  Double ->
+  -- | The maximum number of read connections to keep open at once. The smallest acceptable value is 1.
+  Int ->
+  -- | The action to create a new connection for writing to the database.
+  m S.Connection ->
+  -- | The number of seconds for which an unused write connection is kept around. The smallest acceptable value is 0.5.
+  --
+  -- Note: the elapsed time before destroying a connection may be a little longer than requested, as the collector thread wakes at 1-second intervals.
+  Double ->
+  m PoolsConfig
+newPoolsConfig mkReadConn readTTLSeconds readMaxResources mkWriteConn writeTTLSeconds = do
+  readPoolConfig <-
+    Pool.mkDefaultPoolConfig
+      (Connection @'Read <$> mkReadConn)
+      (liftIO . S.close . getConn)
+      readTTLSeconds
+      readMaxResources
+
+  let writeMaxConns = 1
+  writePoolConfig <-
+    Pool.mkDefaultPoolConfig
+      (Connection @'Write <$> mkWriteConn)
+      (liftIO . S.close . getConn)
+      writeTTLSeconds
+      writeMaxConns
+  pure PoolsConfig {readPoolConfig, writePoolConfig}
+
+runSQLiteWithPools :: (IOE :> es) => Pools -> Eff (SQLite ': es) a -> Eff es a
+runSQLiteWithPools pools = interpret \env -> \case
+  WithReadConnection action -> do
+    localSeqUnlift env \unlift -> do
+      Pool.withResource pools.readPool \conn -> do
+        unlift $ action conn
+  WithWriteConnection action -> do
+    localSeqUnlift env \unlift -> do
+      Pool.withResource pools.writePool \conn -> do
+        unlift $ action conn
 
 ----------------------------------------------------------------------------
 -- Utils
