@@ -49,13 +49,13 @@ queryNamed :: (Labeled label SQLite :> es) => (FromRow r) => Connection label mo
 queryNamed conn q params = unsafeEff_ $ S.queryNamed conn.getConn.getConn q params
 
 lastInsertRowId :: (Labeled label SQLite :> es) => Connection label mode -> Eff es Int64
-lastInsertRowId conn = unsafeEff_ $ S.lastInsertRowId $ conn.getConn.getConn
+lastInsertRowId conn = unsafeEff_ $ S.lastInsertRowId conn.getConn.getConn
 
 changes :: (Labeled label SQLite :> es) => Connection label mode -> Eff es Int
-changes conn = unsafeEff_ $ S.changes $ conn.getConn.getConn
+changes conn = unsafeEff_ $ S.changes conn.getConn.getConn
 
 totalChanges :: (Labeled label SQLite :> es) => Connection label mode -> Eff es Int
-totalChanges conn = unsafeEff_ $ S.totalChanges $ conn.getConn.getConn
+totalChanges conn = unsafeEff_ $ S.totalChanges conn.getConn.getConn
 
 fold :: forall label row params a es mode. (Labeled label SQLite :> es) => (FromRow row, ToRow params) => Connection label mode -> Query -> params -> a -> (a -> row -> Eff es a) -> Eff es a
 fold conn q params initialState action =
@@ -123,7 +123,12 @@ withSavepoint conn action =
 -- so that readers will not block the writer and the writer will not block readers.
 --
 -- Note that even in WAL mode, [@SQLITE_BUSY@ errors can still occur](https://sqlite.org/wal.html#sometimes_queries_return_sqlite_busy_in_wal_mode).
-runSQLiteWithPools :: forall label es a. (HasCallStack, IOE :> es) => RW.Pools -> Eff (Labeled label SQLite ': es) a -> Eff es a
+runSQLiteWithPools ::
+  forall label es a.
+  (HasCallStack, IOE :> es) =>
+  RW.Pools ->
+  Eff (Labeled label SQLite ': es) a ->
+  Eff es a
 runSQLiteWithPools = runLabeled @label . RW.runSQLiteWithPools
 
 ----------------------------------------------------------------------------
