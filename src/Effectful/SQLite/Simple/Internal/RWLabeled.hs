@@ -3,7 +3,7 @@
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 {-# OPTIONS_HADDOCK not-home #-}
 
-module Effectful.SQLite.Simple.Internal.RW where
+module Effectful.SQLite.Simple.Internal.RWLabeled where
 
 import Data.Int (Int64)
 import Database.SQLite.Simple (FromRow, NamedParam, Query, ToRow)
@@ -12,6 +12,9 @@ import Database.SQLite.Simple.FromRow (RowParser)
 import Effectful
 import Effectful.Dispatch.Dynamic (interpret, localSeqUnlift, send)
 import Effectful.Dispatch.Static (seqUnliftIO, unsafeEff, unsafeEff_)
+import Effectful.Labeled (Labeled (..))
+import Effectful.SQLite.Simple.Internal.RW (ConnMode (..), SQLite)
+import Effectful.SQLite.Simple.Internal.RW qualified as RW
 import GHC.Stack (HasCallStack)
 import UnliftIO.Pool qualified as Pool
 
