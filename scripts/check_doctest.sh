@@ -160,7 +160,9 @@ while IFS= read -r -d '' file; do
     exit 1
     # Scan for plain doctest prompts like `>>> 1 + 1`.
   done < <(grep -nE '^[[:space:]]*>>>[[:space:]]+' "$file" || true)
-# Scan .hs and .lhs files
-done < <(find "$repo_root" \( -name '*.lhs' -o -name '*.hs' \) -print0)
+# Scan .hs and .lhs files, excluding build directories anywhere in the tree.
+done < <(find "$repo_root" \
+  \( -type d \( -name '.stack-work' -o -name 'dist-newstyle' \) -prune \) -o \
+  \( -type f \( -name '*.lhs' -o -name '*.hs' \) -print0 \))
 
 exit 0

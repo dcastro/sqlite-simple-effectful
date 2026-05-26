@@ -46,6 +46,7 @@ haddock-hackage *ARGS:
 # - [ ] Update version in `package.yaml`
 # - [ ] Update changelog
 # - [ ] Add `@since` annotations to all new public API
+# - [ ] Review the `min-deps` command
 # - [ ] Create GitHub release & tag the commit
 
 publish-candidate:
