@@ -19,8 +19,6 @@ import GHC.Conc qualified as Conc
 import System.Environment (getArgs)
 import System.Exit (die)
 import System.IO.Temp qualified as Temp
-import UnliftIO.Pool (Pool)
-import UnliftIO.Pool qualified as Pool
 
 main :: IO ()
 main = do
@@ -30,6 +28,7 @@ main = do
     ("2" : _) -> example2
     ("3" : _) -> example3
     ("4" : _) -> example4
+    ("5" : _) -> example5
     [] -> die "Missing argument"
     args -> die $ "Invalid migration number, args:" <> show args
 
@@ -85,7 +84,8 @@ yx = do
 This test starts 2 connections sequentially, and then starts 2 threads that use those connections to read/write.
 Even with WAL enabled, this can lead to a deadlock.
 
-This test will invariably fail with a "database is locked" error.
+This test will invariably fail with:
+> SQLite3 returned ErrorBusy while attempting to perform prepare "INSERT INTO test (value) VALUES ('Hello, world!')": database is locked
 
 See: https://sqlite.org/wal.html#sometimes_queries_return_sqlite_busy_in_wal_mode
 -}
@@ -100,6 +100,7 @@ example3 = do
 
       writeConn <- SS.open dbPath
       readConn <- SS.open dbPath
+
       handleReader2 <- Async.async $ reader readConn "2"
       handleWriter <- Async.async $ writer writeConn "1"
 
@@ -115,8 +116,33 @@ example3 = do
       SS.execute conn "INSERT INTO test (value) VALUES ('Hello, world!')" ()
       liftIO $ putStrLn $ "Inserted by " <> label
 
+{-
+Even if we modify the example above to be single thread, the test will still fail,
+albeit less frequently and with a different error:
+
+> SQLite3 returned ErrorCan'tOpen while attempting to perform prepare "INSERT INTO test (value) VALUES ('Hello, world!')": unable to open database file
+ -}
 example4 :: IO ()
 example4 = do
+  forever do
+    Temp.withSystemTempFile "sqlite-simple-effectful-example.db" \dbPath _dbHandle -> do
+      SS.withConnection dbPath \conn -> do
+        SS.execute_ conn "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT)"
+        SS.execute_ conn "PRAGMA journal_mode=WAL"
+
+      writeConn <- SS.open dbPath
+      readConn <- SS.open dbPath
+      [SS.Only count] <- SS.query_ @(Only Int) readConn "SELECT COUNT(*) FROM test"
+      liftIO $ putStrLn $ "Read from " <> "1" <> ": " <> show count
+      SS.execute writeConn "INSERT INTO test (value) VALUES ('Hello, world!')" ()
+      liftIO $ putStrLn $ "Inserted by " <> "1"
+
+{-
+Adding some delay, so that the threads don't start their connections all at once,
+alleviates the problem.
+-}
+example5 :: IO ()
+example5 = do
   Temp.withSystemTempFile "sqlite-simple-effectful-example.db" \dbPath _dbHandle -> do
     SS.withConnection dbPath \conn -> do
       SS.execute_ conn "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT)"
