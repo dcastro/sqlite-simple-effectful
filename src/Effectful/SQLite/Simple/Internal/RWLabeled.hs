@@ -123,7 +123,7 @@ withSavepoint conn action =
 -- so that readers will not block the writer and the writer will not block readers.
 --
 -- Note that even in WAL mode, [@SQLITE_BUSY@ errors can still occur](https://sqlite.org/wal.html#sometimes_queries_return_sqlite_busy_in_wal_mode).
-runSQLiteWithPools :: forall label es a. (IOE :> es) => RW.Pools -> Eff (Labeled label SQLite ': es) a -> Eff es a
+runSQLiteWithPools :: forall label es a. (HasCallStack, IOE :> es) => RW.Pools -> Eff (Labeled label SQLite ': es) a -> Eff es a
 runSQLiteWithPools = runLabeled @label . RW.runSQLiteWithPools
 
 ----------------------------------------------------------------------------
