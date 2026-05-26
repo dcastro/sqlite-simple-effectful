@@ -166,6 +166,18 @@ newPoolsConfig mkReadConn readTTLSeconds readMaxResources mkWriteConn writeTTLSe
       writeMaxConns
   pure PoolsConfig {readPoolConfig, writePoolConfig}
 
+-- | Interprets the 'SQLite' effect by using 2 connection pools for reading and writing.
+--
+-- SQLite allows multiple connections to read/write concurrently, but concurrent writes will lead to @SQLITE_BUSY@ errors.
+-- We avoid this by:
+--
+--   * Having separate pools for reading and writing.
+--   * Configuring the write pool to have a maximum of 1 connection, thus serializing all writes.
+--
+-- __WARNING__: This interpreter sets the database's journal mode to [WAL](https://sqlite.org/wal.html),
+-- so that readers will not block the writer and the writer will not block readers.
+--
+-- Note that even in WAL mode, [@SQLITE_BUSY@ errors can still occur](https://sqlite.org/wal.html#sometimes_queries_return_sqlite_busy_in_wal_mode).
 runSQLiteWithPools :: (IOE :> es) => Pools -> Eff (SQLite ': es) a -> Eff es a
 runSQLiteWithPools pools action = do
   {-
