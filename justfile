@@ -8,6 +8,8 @@ checks:
     just haddock
     # check markdown links
     xrefcheck --ignore "release/**/*"
+    # Check cross-references in the repo
+    xreferee --include-untracked
     # Build with `-Werror`
     stack clean && stack build --fast --test --bench --no-run-tests --no-run-benchmarks --ghc-options "-Werror"
     # Build with the lowest supported version of each dependency.

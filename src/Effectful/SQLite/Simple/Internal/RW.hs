@@ -19,6 +19,10 @@ import UnliftIO.Pool qualified as Pool
 -- Effect
 ----------------------------------------------------------------------------
 
+{-
+  The rationale for having separate "read" and "write" pools has been documented here: @(ref:concurrency)
+-}
+
 data ConnMode = Read | Write
 
 newtype Connection (mode :: ConnMode) = Connection {getConn :: S.Connection}

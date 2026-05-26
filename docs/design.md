@@ -54,6 +54,7 @@ lastInsertRowId = unsafeEff_ . S.lastInsertRowId
 ```
 
 ## Concurrency
+<!-- #(ref:concurrency) -->
 
 While SQLite does technically support multiple concurrent connections (assuming [multi-threaded or serialized modes][threading-modes]),
 SQLite will still serialize "write" operations.

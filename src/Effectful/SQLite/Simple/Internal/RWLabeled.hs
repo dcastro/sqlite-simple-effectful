@@ -21,6 +21,10 @@ import GHC.Stack (HasCallStack)
 -- Effect
 ----------------------------------------------------------------------------
 
+{-
+  The rationale for having separate "read" and "write" pools has been documented here: @(ref:concurrency)
+-}
+
 newtype Connection (label :: k) (mode :: RW.ConnMode) = Connection {getConn :: RW.Connection mode}
 
 withReadConnection :: forall label es a. (HasCallStack, Labeled label SQLite :> es) => (Connection label 'Read -> Eff es a) -> Eff es a
