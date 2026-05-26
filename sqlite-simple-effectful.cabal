@@ -70,6 +70,7 @@ executable sqlite-simple-effectful-examples
     , effectful-core
     , sqlite-simple
     , sqlite-simple-effectful
+    , temporary
     , unliftio-pool
   default-language: GHC2024
 

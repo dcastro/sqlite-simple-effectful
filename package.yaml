@@ -63,6 +63,7 @@ executables:
       - sqlite-simple-effectful
       - async
       - unliftio-pool
+      - temporary
 
 tests:
   sqlite-simple-effectful-test:
