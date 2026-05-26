@@ -96,7 +96,6 @@ example3 = do
     Temp.withSystemTempFile "sqlite-simple-effectful-example.db" \dbPath _dbHandle -> do
       SS.withConnection dbPath \conn -> do
         SS.execute_ conn "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT)"
-        SS.execute_ conn "PRAGMA journal_mode=WAL"
 
       writeConn <- SS.open dbPath
       readConn <- SS.open dbPath
@@ -128,7 +127,6 @@ example4 = do
     Temp.withSystemTempFile "sqlite-simple-effectful-example.db" \dbPath _dbHandle -> do
       SS.withConnection dbPath \conn -> do
         SS.execute_ conn "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT)"
-        SS.execute_ conn "PRAGMA journal_mode=WAL"
 
       writeConn <- SS.open dbPath
       readConn <- SS.open dbPath
@@ -146,7 +144,6 @@ example5 = do
   Temp.withSystemTempFile "sqlite-simple-effectful-example.db" \dbPath _dbHandle -> do
     SS.withConnection dbPath \conn -> do
       SS.execute_ conn "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT)"
-      SS.execute_ conn "PRAGMA journal_mode=WAL"
 
     pools <-
       RW.newPools

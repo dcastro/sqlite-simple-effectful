@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedRecordDot #-}
+{-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_HADDOCK not-home #-}
 
 module Effectful.SQLite.Simple.Internal.RW where
@@ -166,15 +167,31 @@ newPoolsConfig mkReadConn readTTLSeconds readMaxResources mkWriteConn writeTTLSe
   pure PoolsConfig {readPoolConfig, writePoolConfig}
 
 runSQLiteWithPools :: (IOE :> es) => Pools -> Eff (SQLite ': es) a -> Eff es a
-runSQLiteWithPools pools = interpret \env -> \case
-  WithReadConnection action -> do
-    localSeqUnlift env \unlift -> do
-      Pool.withResource pools.readPool \conn -> do
-        unlift $ action conn
-  WithWriteConnection action -> do
-    localSeqUnlift env \unlift -> do
-      Pool.withResource pools.writePool \conn -> do
-        unlift $ action conn
+runSQLiteWithPools pools action = do
+  {-
+    NOTE: we set the WAL mode upfront.
+
+    To avoid SQLITE_BUSY errors, all connections must be made in WAL mode.
+    We can't set WAL mode lazily (e.g. every time a pool creates a new connection),
+    because having the "read pool" execute `PRAGMA journal_mode=WAL` would cause it to acquire
+    an exclusive lock on the database, which it must not do.
+    Therefore, we must do it eagerly, here.
+  -}
+  Pool.withResource pools.writePool \conn -> do
+    liftIO $ S.execute_ conn.getConn "PRAGMA journal_mode=WAL"
+
+  interpret
+    ( \env -> \case
+        WithReadConnection action -> do
+          localSeqUnlift env \unlift -> do
+            Pool.withResource pools.readPool \conn -> do
+              unlift $ action conn
+        WithWriteConnection action -> do
+          localSeqUnlift env \unlift -> do
+            Pool.withResource pools.writePool \conn -> do
+              unlift $ action conn
+    )
+    action
 
 ----------------------------------------------------------------------------
 -- Utils
