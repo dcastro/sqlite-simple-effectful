@@ -34,6 +34,30 @@ withWriteConnection :: forall label es a. (HasCallStack, Labeled label SQLite :>
 withWriteConnection use = send $ Labeled @label $ RW.WithWriteConnection \conn -> use (Connection conn)
 
 ----------------------------------------------------------------------------
+-- Interpreters
+----------------------------------------------------------------------------
+
+-- | Interprets the 'SQLite' effect by using 2 connection pools for reading and writing.
+--
+-- SQLite allows multiple connections to read/write concurrently, but concurrent writes will lead to @SQLITE_BUSY@ errors.
+-- We avoid this by:
+--
+--   * Having separate pools for reading and writing.
+--   * Configuring the write pool to have a maximum of 1 connection, thus serializing all writes.
+--
+-- __WARNING__: This interpreter sets the database's journal mode to [WAL](https://sqlite.org/wal.html),
+-- so that readers will not block the writer and the writer will not block readers.
+--
+-- Note that even in WAL mode, [@SQLITE_BUSY@ errors can still occur](https://sqlite.org/wal.html#sometimes_queries_return_sqlite_busy_in_wal_mode).
+runSQLiteWithPools ::
+  forall label es a.
+  (HasCallStack, IOE :> es) =>
+  RW.Pools ->
+  Eff (Labeled label SQLite ': es) a ->
+  Eff es a
+runSQLiteWithPools = runLabeled @label . RW.runSQLiteWithPools
+
+----------------------------------------------------------------------------
 -- Operations
 ----------------------------------------------------------------------------
 
@@ -110,30 +134,6 @@ withSavepoint :: forall label a es. (Labeled label SQLite :> es) => Connection l
 withSavepoint conn action =
   unsafeEffWithUnlift @label \unlift -> do
     S.withSavepoint conn.getConn.getConn $ unlift action
-
-----------------------------------------------------------------------------
--- Interpreters
-----------------------------------------------------------------------------
-
--- | Interprets the 'SQLite' effect by using 2 connection pools for reading and writing.
---
--- SQLite allows multiple connections to read/write concurrently, but concurrent writes will lead to @SQLITE_BUSY@ errors.
--- We avoid this by:
---
---   * Having separate pools for reading and writing.
---   * Configuring the write pool to have a maximum of 1 connection, thus serializing all writes.
---
--- __WARNING__: This interpreter sets the database's journal mode to [WAL](https://sqlite.org/wal.html),
--- so that readers will not block the writer and the writer will not block readers.
---
--- Note that even in WAL mode, [@SQLITE_BUSY@ errors can still occur](https://sqlite.org/wal.html#sometimes_queries_return_sqlite_busy_in_wal_mode).
-runSQLiteWithPools ::
-  forall label es a.
-  (HasCallStack, IOE :> es) =>
-  RW.Pools ->
-  Eff (Labeled label SQLite ': es) a ->
-  Eff es a
-runSQLiteWithPools = runLabeled @label . RW.runSQLiteWithPools
 
 ----------------------------------------------------------------------------
 -- Utils

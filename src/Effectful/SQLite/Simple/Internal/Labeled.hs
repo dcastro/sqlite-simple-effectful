@@ -29,6 +29,22 @@ withConnection :: forall label es a. (Labeled label SQLite :> es) => (Connection
 withConnection use = send $ Labeled @label $ Internal.WithConnection \conn -> use (Connection conn)
 
 ----------------------------------------------------------------------------
+-- Interpreters
+----------------------------------------------------------------------------
+
+runSQLiteUnsync ::
+  forall label es a.
+  (HasCallStack, IOE :> es) =>
+  S.Connection -> Eff (Labeled label SQLite ': es) a -> Eff es a
+runSQLiteUnsync = runLabeled @label . Internal.runSQLiteUnsync
+
+runSQLiteSync ::
+  forall label es a.
+  (HasCallStack, IOE :> es, Concurrent :> es) =>
+  MVar S.Connection -> Eff (Labeled label SQLite ': es) a -> Eff es a
+runSQLiteSync = runLabeled @label . Internal.runSQLiteSync
+
+----------------------------------------------------------------------------
 -- Operations
 ----------------------------------------------------------------------------
 
@@ -105,22 +121,6 @@ withSavepoint :: forall label a es. (Labeled label SQLite :> es) => Connection l
 withSavepoint conn action =
   unsafeEffWithUnlift @label \unlift -> do
     S.withSavepoint conn.getConn $ unlift action
-
-----------------------------------------------------------------------------
--- Interpreters
-----------------------------------------------------------------------------
-
-runSQLiteUnsync ::
-  forall label es a.
-  (HasCallStack, IOE :> es) =>
-  S.Connection -> Eff (Labeled label SQLite ': es) a -> Eff es a
-runSQLiteUnsync = runLabeled @label . Internal.runSQLiteUnsync
-
-runSQLiteSync ::
-  forall label es a.
-  (HasCallStack, IOE :> es, Concurrent :> es) =>
-  MVar S.Connection -> Eff (Labeled label SQLite ': es) a -> Eff es a
-runSQLiteSync = runLabeled @label . Internal.runSQLiteSync
 
 ----------------------------------------------------------------------------
 -- Utils

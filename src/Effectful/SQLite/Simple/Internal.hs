@@ -28,6 +28,28 @@ withConnection :: (HasCallStack, SQLite :> es) => (Connection -> Eff es a) -> Ef
 withConnection = send . WithConnection
 
 ----------------------------------------------------------------------------
+-- Interpreters
+----------------------------------------------------------------------------
+
+runSQLiteUnsync ::
+  (HasCallStack, IOE :> es) =>
+  Connection -> Eff (SQLite ': es) a -> Eff es a
+runSQLiteUnsync conn =
+  interpret \env -> \case
+    WithConnection f ->
+      localSeqUnlift env \unlift -> unlift $ f conn
+
+runSQLiteSync ::
+  (HasCallStack, IOE :> es, Concurrent :> es) =>
+  MVar Connection -> Eff (SQLite ': es) a -> Eff es a
+runSQLiteSync connVar = do
+  interpret \env -> \case
+    WithConnection f ->
+      localSeqUnlift env \unlift -> do
+        MVar.withMVar connVar \conn -> do
+          unlift $ f conn
+
+----------------------------------------------------------------------------
 -- Operations
 ----------------------------------------------------------------------------
 
@@ -114,31 +136,6 @@ withSavepoint :: (SQLite :> es) => Connection -> Eff es a -> Eff es a
 withSavepoint conn action =
   unsafeEffWithUnlift \unlift -> do
     S.withSavepoint conn $ unlift action
-
-----------------------------------------------------------------------------
--- Interpreters
-----------------------------------------------------------------------------
-
-runSQLiteUnsync ::
-  (HasCallStack, IOE :> es) =>
-  Connection -> Eff (SQLite ': es) a -> Eff es a
-runSQLiteUnsync conn =
-  interpret \env -> \case
-    WithConnection f ->
-      localSeqUnlift env \unlift -> unlift $ f conn
-
-runSQLiteSync ::
-  (HasCallStack, IOE :> es, Concurrent :> es) =>
-  MVar Connection -> Eff (SQLite ': es) a -> Eff es a
-runSQLiteSync connVar action = do
-  interpret
-    ( \env -> \case
-        WithConnection f ->
-          localSeqUnlift env \unlift -> do
-            MVar.withMVar connVar \conn -> do
-              unlift $ f conn
-    )
-    action
 
 ----------------------------------------------------------------------------
 -- Utils

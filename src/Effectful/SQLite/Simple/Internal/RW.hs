@@ -40,6 +40,99 @@ withWriteConnection :: (HasCallStack, SQLite :> es) => (Connection 'Write -> Eff
 withWriteConnection = send . WithWriteConnection
 
 ----------------------------------------------------------------------------
+-- Interpreters
+----------------------------------------------------------------------------
+
+-- | Interprets the 'SQLite' effect by using 2 connection pools for reading and writing.
+--
+-- SQLite allows multiple connections to read/write concurrently, but concurrent writes will lead to @SQLITE_BUSY@ errors.
+-- We avoid this by:
+--
+--   * Having separate pools for reading and writing.
+--   * Configuring the write pool to have a maximum of 1 connection, thus serializing all writes.
+--
+-- __WARNING__: This interpreter sets the database's journal mode to [WAL](https://sqlite.org/wal.html),
+-- so that readers will not block the writer and the writer will not block readers.
+--
+-- Note that even in WAL mode, [@SQLITE_BUSY@ errors can still occur](https://sqlite.org/wal.html#sometimes_queries_return_sqlite_busy_in_wal_mode).
+runSQLiteWithPools :: (HasCallStack, IOE :> es) => Pools -> Eff (SQLite ': es) a -> Eff es a
+runSQLiteWithPools pools action = do
+  {-
+    NOTE: we set the WAL mode upfront.
+
+    To avoid SQLITE_BUSY errors, all connections must be made in WAL mode.
+    We can't set WAL mode lazily (e.g. every time a pool creates a new connection),
+    because having the "read pool" execute `PRAGMA journal_mode=WAL` would cause it to acquire
+    an exclusive lock on the database, which it must not do.
+    Therefore, we must do it eagerly, here.
+  -}
+  Pool.withResource pools.writePool \conn -> do
+    liftIO $ S.execute_ conn.getConn "PRAGMA journal_mode=WAL"
+
+  interpret
+    ( \env -> \case
+        WithReadConnection action -> do
+          localSeqUnlift env \unlift -> do
+            Pool.withResource pools.readPool \conn -> do
+              unlift $ action conn
+        WithWriteConnection action -> do
+          localSeqUnlift env \unlift -> do
+            Pool.withResource pools.writePool \conn -> do
+              unlift $ action conn
+    )
+    action
+
+data Pools = Pools
+  { readPool :: Pool.Pool (Connection 'Read),
+    writePool :: Pool.Pool (Connection 'Write)
+  }
+
+newPools :: (MonadUnliftIO m) => PoolsConfig -> m Pools
+newPools (PoolsConfig readPoolConfig writePoolConfig) = do
+  readPool <- Pool.newPool readPoolConfig
+  writePool <- Pool.newPool writePoolConfig
+  pure Pools {readPool, writePool}
+
+data PoolsConfig = PoolsConfig
+  { readPoolConfig :: Pool.PoolConfig (Connection 'Read),
+    writePoolConfig :: Pool.PoolConfig (Connection 'Write)
+  }
+
+newPoolsConfig ::
+  (MonadUnliftIO m) =>
+  -- | The action to create a new connection for reading from the database.
+  m S.Connection ->
+  -- | The number of seconds for which an unused read connection is kept around. The smallest acceptable value is 0.5.
+  --
+  -- Note: the elapsed time before destroying a connection may be a little longer than requested, as the collector thread wakes at 1-second intervals.
+  Double ->
+  -- | The maximum number of read connections to keep open at once. The smallest acceptable value is 1.
+  Int ->
+  -- | The action to create a new connection for writing to the database.
+  m S.Connection ->
+  -- | The number of seconds for which an unused write connection is kept around. The smallest acceptable value is 0.5.
+  --
+  -- Note: the elapsed time before destroying a connection may be a little longer than requested, as the collector thread wakes at 1-second intervals.
+  Double ->
+  m PoolsConfig
+newPoolsConfig mkReadConn readTTLSeconds readMaxResources mkWriteConn writeTTLSeconds = do
+  readPoolConfig <-
+    Pool.mkDefaultPoolConfig
+      (Connection @'Read <$> mkReadConn)
+      (liftIO . S.close . getConn)
+      readTTLSeconds
+      readMaxResources
+
+  let writeMaxConns = 1
+  writePoolConfig <-
+    Pool.mkDefaultPoolConfig
+      (Connection @'Write <$> mkWriteConn)
+      (liftIO . S.close . getConn)
+      writeTTLSeconds
+      writeMaxConns
+  pure PoolsConfig {readPoolConfig, writePoolConfig}
+
+----------------------------------------------------------------------------
 -- Operations
 ----------------------------------------------------------------------------
 
@@ -116,99 +209,6 @@ withSavepoint :: (SQLite :> es) => Connection 'Write -> Eff es a -> Eff es a
 withSavepoint conn action =
   unsafeEffWithUnlift \unlift -> do
     S.withSavepoint conn.getConn $ unlift action
-
-----------------------------------------------------------------------------
--- Interpreters
-----------------------------------------------------------------------------
-
-data Pools = Pools
-  { readPool :: Pool.Pool (Connection 'Read),
-    writePool :: Pool.Pool (Connection 'Write)
-  }
-
-newPools :: (MonadUnliftIO m) => PoolsConfig -> m Pools
-newPools (PoolsConfig readPoolConfig writePoolConfig) = do
-  readPool <- Pool.newPool readPoolConfig
-  writePool <- Pool.newPool writePoolConfig
-  pure Pools {readPool, writePool}
-
-data PoolsConfig = PoolsConfig
-  { readPoolConfig :: Pool.PoolConfig (Connection 'Read),
-    writePoolConfig :: Pool.PoolConfig (Connection 'Write)
-  }
-
-newPoolsConfig ::
-  (MonadUnliftIO m) =>
-  -- | The action to create a new connection for reading from the database.
-  m S.Connection ->
-  -- | The number of seconds for which an unused read connection is kept around. The smallest acceptable value is 0.5.
-  --
-  -- Note: the elapsed time before destroying a connection may be a little longer than requested, as the collector thread wakes at 1-second intervals.
-  Double ->
-  -- | The maximum number of read connections to keep open at once. The smallest acceptable value is 1.
-  Int ->
-  -- | The action to create a new connection for writing to the database.
-  m S.Connection ->
-  -- | The number of seconds for which an unused write connection is kept around. The smallest acceptable value is 0.5.
-  --
-  -- Note: the elapsed time before destroying a connection may be a little longer than requested, as the collector thread wakes at 1-second intervals.
-  Double ->
-  m PoolsConfig
-newPoolsConfig mkReadConn readTTLSeconds readMaxResources mkWriteConn writeTTLSeconds = do
-  readPoolConfig <-
-    Pool.mkDefaultPoolConfig
-      (Connection @'Read <$> mkReadConn)
-      (liftIO . S.close . getConn)
-      readTTLSeconds
-      readMaxResources
-
-  let writeMaxConns = 1
-  writePoolConfig <-
-    Pool.mkDefaultPoolConfig
-      (Connection @'Write <$> mkWriteConn)
-      (liftIO . S.close . getConn)
-      writeTTLSeconds
-      writeMaxConns
-  pure PoolsConfig {readPoolConfig, writePoolConfig}
-
--- | Interprets the 'SQLite' effect by using 2 connection pools for reading and writing.
---
--- SQLite allows multiple connections to read/write concurrently, but concurrent writes will lead to @SQLITE_BUSY@ errors.
--- We avoid this by:
---
---   * Having separate pools for reading and writing.
---   * Configuring the write pool to have a maximum of 1 connection, thus serializing all writes.
---
--- __WARNING__: This interpreter sets the database's journal mode to [WAL](https://sqlite.org/wal.html),
--- so that readers will not block the writer and the writer will not block readers.
---
--- Note that even in WAL mode, [@SQLITE_BUSY@ errors can still occur](https://sqlite.org/wal.html#sometimes_queries_return_sqlite_busy_in_wal_mode).
-runSQLiteWithPools :: (HasCallStack, IOE :> es) => Pools -> Eff (SQLite ': es) a -> Eff es a
-runSQLiteWithPools pools action = do
-  {-
-    NOTE: we set the WAL mode upfront.
-
-    To avoid SQLITE_BUSY errors, all connections must be made in WAL mode.
-    We can't set WAL mode lazily (e.g. every time a pool creates a new connection),
-    because having the "read pool" execute `PRAGMA journal_mode=WAL` would cause it to acquire
-    an exclusive lock on the database, which it must not do.
-    Therefore, we must do it eagerly, here.
-  -}
-  Pool.withResource pools.writePool \conn -> do
-    liftIO $ S.execute_ conn.getConn "PRAGMA journal_mode=WAL"
-
-  interpret
-    ( \env -> \case
-        WithReadConnection action -> do
-          localSeqUnlift env \unlift -> do
-            Pool.withResource pools.readPool \conn -> do
-              unlift $ action conn
-        WithWriteConnection action -> do
-          localSeqUnlift env \unlift -> do
-            Pool.withResource pools.writePool \conn -> do
-              unlift $ action conn
-    )
-    action
 
 ----------------------------------------------------------------------------
 -- Utils
