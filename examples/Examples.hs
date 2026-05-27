@@ -40,7 +40,7 @@ example1 = do
   where
     t1 :: (S.SQLite :> es, IOE :> es) => Eff es ()
     t1 = do
-      S.withConnection \conn -> do
+      S.useConnection \conn -> do
         res <- S.query_ @_ @(Only Int) conn "SELECT 1 + 3"
         liftIO $ print res
         pure ()
@@ -67,17 +67,17 @@ example2 = do
 -- | Acquires the "x" connection and then the "y" connection.
 xy :: (Labeled "x" S.SQLite :> es, Labeled "y" S.SQLite :> es, Concurrent :> es) => Eff es ()
 xy = do
-  L.withConnection @"x" \_conn1 -> do
+  L.useConnection @"x" \_conn1 -> do
     threadDelay 1_e6
-    L.withConnection @"y" \_conn2 -> do
+    L.useConnection @"y" \_conn2 -> do
       pure ()
 
 -- | Acquires the "y" connection and then the "x" connection.
 yx :: (Labeled "x" S.SQLite :> es, Labeled "y" S.SQLite :> es, Concurrent :> es) => Eff es ()
 yx = do
-  L.withConnection @"y" \_conn1 -> do
+  L.useConnection @"y" \_conn1 -> do
     threadDelay 1_e6
-    L.withConnection @"x" \_conn2 -> do
+    L.useConnection @"x" \_conn2 -> do
       pure ()
 
 {-
@@ -168,13 +168,13 @@ example5 = do
   where
     reader :: (RW.SQLite :> es, IOE :> es) => String -> Eff es ()
     reader label = do
-      RW.withReadConnection \conn -> do
+      RW.useReadConnection \conn -> do
         res <- RW.query_ @_ @(Only Int) conn "SELECT COUNT(*) FROM test"
         liftIO $ putStrLn $ "Read from " <> label <> ": " <> show res
       reader label
     writer :: (RW.SQLite :> es, IOE :> es) => String -> Eff es ()
     writer label = do
-      RW.withWriteConnection \conn -> do
+      RW.useWriteConnection \conn -> do
         RW.execute conn "INSERT INTO test (value) VALUES ('Hello, world!')" ()
         liftIO $ putStrLn $ "Inserted by " <> label
       writer label

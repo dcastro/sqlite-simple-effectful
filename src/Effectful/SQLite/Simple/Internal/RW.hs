@@ -29,16 +29,16 @@ data ConnMode = Read | Write
 newtype Connection (mode :: ConnMode) = Connection {getConn :: S.Connection}
 
 data SQLite :: Effect where
-  WithReadConnection :: (Connection 'Read -> m a) -> SQLite m a
-  WithWriteConnection :: (Connection 'Write -> m a) -> SQLite m a
+  UseReadConnection :: (Connection 'Read -> m a) -> SQLite m a
+  UseWriteConnection :: (Connection 'Write -> m a) -> SQLite m a
 
 type instance DispatchOf SQLite = 'Dynamic
 
-withReadConnection :: (HasCallStack, SQLite :> es) => (Connection 'Read -> Eff es a) -> Eff es a
-withReadConnection = send . WithReadConnection
+useReadConnection :: (HasCallStack, SQLite :> es) => (Connection 'Read -> Eff es a) -> Eff es a
+useReadConnection = send . UseReadConnection
 
-withWriteConnection :: (HasCallStack, SQLite :> es) => (Connection 'Write -> Eff es a) -> Eff es a
-withWriteConnection = send . WithWriteConnection
+useWriteConnection :: (HasCallStack, SQLite :> es) => (Connection 'Write -> Eff es a) -> Eff es a
+useWriteConnection = send . UseWriteConnection
 
 ----------------------------------------------------------------------------
 -- Interpreters
@@ -72,11 +72,11 @@ runSQLiteWithPools pools action = do
 
   interpret
     ( \env -> \case
-        WithReadConnection action -> do
+        UseReadConnection action -> do
           localSeqUnlift env \unlift -> do
             Pool.withResource pools.readPool \conn -> do
               unlift $ action conn
-        WithWriteConnection action -> do
+        UseWriteConnection action -> do
           localSeqUnlift env \unlift -> do
             Pool.withResource pools.writePool \conn -> do
               unlift $ action conn

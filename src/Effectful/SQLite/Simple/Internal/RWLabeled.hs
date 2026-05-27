@@ -28,11 +28,11 @@ import GHC.Stack (HasCallStack)
 
 newtype Connection (label :: k) (mode :: RW.ConnMode) = Connection {getConn :: RW.Connection mode}
 
-withReadConnection :: forall label es a. (HasCallStack, Labeled label SQLite :> es) => (Connection label 'Read -> Eff es a) -> Eff es a
-withReadConnection use = send $ Labeled @label $ RW.WithReadConnection \conn -> use (Connection conn)
+useReadConnection :: forall label es a. (HasCallStack, Labeled label SQLite :> es) => (Connection label 'Read -> Eff es a) -> Eff es a
+useReadConnection use = send $ Labeled @label $ RW.UseReadConnection \conn -> use (Connection conn)
 
-withWriteConnection :: forall label es a. (HasCallStack, Labeled label SQLite :> es) => (Connection label 'Write -> Eff es a) -> Eff es a
-withWriteConnection use = send $ Labeled @label $ RW.WithWriteConnection \conn -> use (Connection conn)
+useWriteConnection :: forall label es a. (HasCallStack, Labeled label SQLite :> es) => (Connection label 'Write -> Eff es a) -> Eff es a
+useWriteConnection use = send $ Labeled @label $ RW.UseWriteConnection \conn -> use (Connection conn)
 
 ----------------------------------------------------------------------------
 -- Interpreters

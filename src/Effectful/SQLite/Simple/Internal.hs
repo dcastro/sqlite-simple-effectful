@@ -21,12 +21,12 @@ import GHC.Stack (HasCallStack)
 ----------------------------------------------------------------------------
 
 data SQLite :: Effect where
-  WithConnection :: (Connection -> m a) -> SQLite m a
+  UseConnection :: (Connection -> m a) -> SQLite m a
 
 type instance DispatchOf SQLite = 'Dynamic
 
-withConnection :: (HasCallStack, SQLite :> es) => (Connection -> Eff es a) -> Eff es a
-withConnection = send . WithConnection
+useConnection :: (HasCallStack, SQLite :> es) => (Connection -> Eff es a) -> Eff es a
+useConnection = send . UseConnection
 
 ----------------------------------------------------------------------------
 -- Interpreters
@@ -37,7 +37,7 @@ runSQLiteUnsync ::
   Connection -> Eff (SQLite ': es) a -> Eff es a
 runSQLiteUnsync conn =
   interpret \env -> \case
-    WithConnection f ->
+    UseConnection f ->
       localSeqUnlift env \unlift -> unlift $ f conn
 
 runSQLiteSync ::
@@ -45,7 +45,7 @@ runSQLiteSync ::
   MVar Connection -> Eff (SQLite ': es) a -> Eff es a
 runSQLiteSync connVar = do
   interpret \env -> \case
-    WithConnection f ->
+    UseConnection f ->
       localSeqUnlift env \unlift -> do
         MVar.withMVar connVar \conn -> do
           unlift $ f conn

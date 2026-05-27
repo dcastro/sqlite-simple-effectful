@@ -32,7 +32,7 @@ There are some issues with this 2nd mode:
 Instead, I opted to:
 
 * have every function require a connection to be explicitly passed in.
-* require the user to manually call `withConnection`, and warn the user not to nest these calls when using an implemented backed by `MVar`
+* require the user to manually call `useConnection`, and warn the user not to nest these calls when using an implemented backed by `MVar`
 
 
 ## `IOE`

@@ -26,8 +26,8 @@ import GHC.Stack (HasCallStack)
 
 newtype Connection (label :: k) = Connection {getConn :: S.Connection}
 
-withConnection :: forall label es a. (Labeled label SQLite :> es) => (Connection label -> Eff es a) -> Eff es a
-withConnection use = send $ Labeled @label $ Internal.WithConnection \conn -> use (Connection conn)
+useConnection :: forall label es a. (Labeled label SQLite :> es) => (Connection label -> Eff es a) -> Eff es a
+useConnection use = send $ Labeled @label $ Internal.UseConnection \conn -> use (Connection conn)
 
 ----------------------------------------------------------------------------
 -- Interpreters
