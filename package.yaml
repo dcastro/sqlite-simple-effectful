@@ -46,6 +46,7 @@ library:
     - effectful-core
     - sqlite-simple
     - unliftio-pool
+    - text
 
 executables:
   sqlite-simple-effectful-examples:

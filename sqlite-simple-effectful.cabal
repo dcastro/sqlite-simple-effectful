@@ -48,6 +48,7 @@ library
     , effectful
     , effectful-core
     , sqlite-simple
+    , text
     , unliftio-pool
   default-language: GHC2024
 

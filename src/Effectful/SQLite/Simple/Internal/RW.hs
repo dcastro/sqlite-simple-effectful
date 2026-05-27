@@ -6,7 +6,8 @@
 module Effectful.SQLite.Simple.Internal.RW where
 
 import Data.Int (Int64)
-import Database.SQLite.Simple (FromRow, NamedParam, Query, ToRow)
+import Data.Text (Text)
+import Database.SQLite.Simple (ColumnIndex, FromRow, NamedParam, Query, Statement, ToRow)
 import Database.SQLite.Simple qualified as S
 import Database.SQLite.Simple.FromRow (RowParser)
 import Effectful
@@ -209,6 +210,40 @@ withSavepoint :: (SQLite :> es) => Connection 'Write -> Eff es a -> Eff es a
 withSavepoint conn action =
   unsafeEffWithUnlift \unlift -> do
     S.withSavepoint conn.getConn $ unlift action
+
+openStatement :: (SQLite :> es) => Connection 'Write -> Query -> Eff es Statement
+openStatement conn q = unsafeEff_ $ S.openStatement conn.getConn q
+
+closeStatement :: (SQLite :> es) => Statement -> Eff es ()
+closeStatement stmt = unsafeEff_ $ S.closeStatement stmt
+
+withStatement :: (SQLite :> es) => Connection 'Write -> Query -> (Statement -> Eff es a) -> Eff es a
+withStatement conn q action =
+  unsafeEffWithUnlift \unlift -> do
+    S.withStatement conn.getConn q (unlift . action)
+
+bind :: (SQLite :> es) => (ToRow params) => Statement -> params -> Eff es ()
+bind stmt params = unsafeEff_ $ S.bind stmt params
+
+bindNamed :: (SQLite :> es) => Statement -> [NamedParam] -> Eff es ()
+bindNamed stmt params = unsafeEff_ $ S.bindNamed stmt params
+
+reset :: (SQLite :> es) => Statement -> Eff es ()
+reset stmt = unsafeEff_ $ S.reset stmt
+
+columnName :: (SQLite :> es) => Statement -> ColumnIndex -> Eff es Text
+columnName stmt idx = unsafeEff_ $ S.columnName stmt idx
+
+columnCount :: (SQLite :> es) => Statement -> Eff es ColumnIndex
+columnCount stmt = unsafeEff_ $ S.columnCount stmt
+
+withBind :: (SQLite :> es) => (ToRow params) => Statement -> params -> Eff es a -> Eff es a
+withBind stmt params action =
+  unsafeEffWithUnlift \unlift -> do
+    S.withBind stmt params $ unlift action
+
+nextRow :: (SQLite :> es) => (FromRow r) => Statement -> Eff es (Maybe r)
+nextRow stmt = unsafeEff_ $ S.nextRow stmt
 
 ----------------------------------------------------------------------------
 -- Utils

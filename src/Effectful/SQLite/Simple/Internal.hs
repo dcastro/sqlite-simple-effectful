@@ -4,7 +4,8 @@
 module Effectful.SQLite.Simple.Internal where
 
 import Data.Int (Int64)
-import Database.SQLite.Simple (Connection, FromRow, NamedParam, Query, ToRow)
+import Data.Text (Text)
+import Database.SQLite.Simple (ColumnIndex, Connection, FromRow, NamedParam, Query, Statement, ToRow)
 import Database.SQLite.Simple qualified as S
 import Database.SQLite.Simple.FromRow (RowParser)
 import Effectful
@@ -137,6 +138,40 @@ withSavepoint conn action =
   unsafeEffWithUnlift \unlift -> do
     S.withSavepoint conn $ unlift action
 
+openStatement :: (SQLite :> es) => Connection -> Query -> Eff es Statement
+openStatement conn q = unsafeEff_ $ S.openStatement conn q
+
+closeStatement :: (SQLite :> es) => Statement -> Eff es ()
+closeStatement stmt = unsafeEff_ $ S.closeStatement stmt
+
+withStatement :: (SQLite :> es) => Connection -> Query -> (Statement -> Eff es a) -> Eff es a
+withStatement conn q action =
+  unsafeEffWithUnlift \unlift -> do
+    S.withStatement conn q (unlift . action)
+
+bind :: (SQLite :> es) => (ToRow params) => Statement -> params -> Eff es ()
+bind stmt params = unsafeEff_ $ S.bind stmt params
+
+bindNamed :: (SQLite :> es) => Statement -> [NamedParam] -> Eff es ()
+bindNamed stmt params = unsafeEff_ $ S.bindNamed stmt params
+
+reset :: (SQLite :> es) => Statement -> Eff es ()
+reset stmt = unsafeEff_ $ S.reset stmt
+
+columnName :: (SQLite :> es) => Statement -> ColumnIndex -> Eff es Text
+columnName stmt idx = unsafeEff_ $ S.columnName stmt idx
+
+columnCount :: (SQLite :> es) => Statement -> Eff es ColumnIndex
+columnCount stmt = unsafeEff_ $ S.columnCount stmt
+
+withBind :: (SQLite :> es) => (ToRow params) => Statement -> params -> Eff es a -> Eff es a
+withBind stmt params action =
+  unsafeEffWithUnlift \unlift -> do
+    S.withBind stmt params $ unlift action
+
+nextRow :: (SQLite :> es) => (FromRow r) => Statement -> Eff es (Maybe r)
+nextRow stmt = unsafeEff_ $ S.nextRow stmt
+
 ----------------------------------------------------------------------------
 -- Utils
 ----------------------------------------------------------------------------
@@ -146,38 +181,3 @@ unsafeEffWithUnlift action =
   unsafeEff \env -> do
     seqUnliftIO env \unlift -> do
       action unlift
-
-{-
-
-query_ :: FromRow r => Connection -> Query -> IO [r]
-queryWith :: ToRow q => RowParser r -> Connection -> Query -> q -> IO [r]
-queryWith_ :: RowParser r -> Connection -> Query -> IO [r]
-queryNamed :: FromRow r => Connection -> Query -> [NamedParam] -> IO [r]
-lastInsertRowId :: Connection -> IO Int64
-changes :: Connection -> IO Int
-totalChanges :: Connection -> IO Int
-
-fold :: (FromRow row, ToRow params) => Connection -> Query -> params -> a -> (a -> row -> IO a) -> IO a
-fold_ :: FromRow row => Connection -> Query -> a -> (a -> row -> IO a) -> IO a
-foldNamed :: FromRow row => Connection -> Query -> [NamedParam] -> a -> (a -> row -> IO a) -> IO a
-
-execute :: ToRow q => Connection -> Query -> q -> IO ()
-execute_ :: Connection -> Query -> IO ()
-executeMany :: ToRow q => Connection -> Query -> [q] -> IO ()
-executeNamed :: Connection -> Query -> [NamedParam] -> IO ()
-
-withTransaction :: Connection -> IO a -> IO a
-withImmediateTransaction :: Connection -> IO a -> IO a
-withExclusiveTransaction :: Connection -> IO a -> IO a
-withSavepoint :: Connection -> IO a -> IO a
-openStatement :: Connection -> Query -> IO Statement
-closeStatement :: Statement -> IO ()
-withStatement :: Connection -> Query -> (Statement -> IO a) -> IO a
-bind :: ToRow params => Statement -> params -> IO ()
-bindNamed :: Statement -> [NamedParam] -> IO ()
-reset :: Statement -> IO ()
-columnName :: Statement -> ColumnIndex -> IO Text
-columnCount :: Statement -> IO ColumnIndex
-withBind :: ToRow params => Statement -> params -> IO a -> IO a
-nextRow :: FromRow r => Statement -> IO (Maybe r)
- -}

@@ -6,7 +6,8 @@
 module Effectful.SQLite.Simple.Internal.Labeled where
 
 import Data.Int (Int64)
-import Database.SQLite.Simple (FromRow, NamedParam, Query, ToRow)
+import Data.Text (Text)
+import Database.SQLite.Simple (ColumnIndex, FromRow, NamedParam, Query, Statement, ToRow)
 import Database.SQLite.Simple qualified as S
 import Database.SQLite.Simple.FromRow (RowParser)
 import Effectful
@@ -121,6 +122,40 @@ withSavepoint :: forall label a es. (Labeled label SQLite :> es) => Connection l
 withSavepoint conn action =
   unsafeEffWithUnlift @label \unlift -> do
     S.withSavepoint conn.getConn $ unlift action
+
+openStatement :: (Labeled label SQLite :> es) => Connection label -> Query -> Eff es Statement
+openStatement conn q = unsafeEff_ $ S.openStatement conn.getConn q
+
+closeStatement :: (Labeled label SQLite :> es) => Statement -> Eff es ()
+closeStatement stmt = unsafeEff_ $ S.closeStatement stmt
+
+withStatement :: forall label a es. (Labeled label SQLite :> es) => Connection label -> Query -> (Statement -> Eff es a) -> Eff es a
+withStatement conn q action =
+  unsafeEffWithUnlift @label \unlift -> do
+    S.withStatement conn.getConn q (unlift . action)
+
+bind :: (Labeled label SQLite :> es) => (ToRow params) => Statement -> params -> Eff es ()
+bind stmt params = unsafeEff_ $ S.bind stmt params
+
+bindNamed :: (Labeled label SQLite :> es) => Statement -> [NamedParam] -> Eff es ()
+bindNamed stmt params = unsafeEff_ $ S.bindNamed stmt params
+
+reset :: (Labeled label SQLite :> es) => Statement -> Eff es ()
+reset stmt = unsafeEff_ $ S.reset stmt
+
+columnName :: (Labeled label SQLite :> es) => Statement -> ColumnIndex -> Eff es Text
+columnName stmt idx = unsafeEff_ $ S.columnName stmt idx
+
+columnCount :: (Labeled label SQLite :> es) => Statement -> Eff es ColumnIndex
+columnCount stmt = unsafeEff_ $ S.columnCount stmt
+
+withBind :: forall label params a es. (Labeled label SQLite :> es) => (ToRow params) => Statement -> params -> Eff es a -> Eff es a
+withBind stmt params action =
+  unsafeEffWithUnlift @label \unlift -> do
+    S.withBind stmt params $ unlift action
+
+nextRow :: (Labeled label SQLite :> es) => (FromRow r) => Statement -> Eff es (Maybe r)
+nextRow stmt = unsafeEff_ $ S.nextRow stmt
 
 ----------------------------------------------------------------------------
 -- Utils
