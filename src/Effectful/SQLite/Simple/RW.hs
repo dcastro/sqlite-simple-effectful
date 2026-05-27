@@ -25,18 +25,18 @@ import UnliftIO.Pool qualified as Pool
 
 data ConnMode = Read | Write
 
-newtype Connection (mode :: ConnMode) = Connection {getConn :: S.Connection}
+newtype RWConnection (mode :: ConnMode) = RWConnection {getConn :: S.Connection}
 
 data SQLite :: Effect where
-  UseReadConnection :: (Connection 'Read -> m a) -> SQLite m a
-  UseWriteConnection :: (Connection 'Write -> m a) -> SQLite m a
+  UseReadConnection :: (RWConnection 'Read -> m a) -> SQLite m a
+  UseWriteConnection :: (RWConnection 'Write -> m a) -> SQLite m a
 
 type instance DispatchOf SQLite = 'Dynamic
 
-useReadConnection :: (HasCallStack, SQLite :> es) => (Connection 'Read -> Eff es a) -> Eff es a
+useReadConnection :: (HasCallStack, SQLite :> es) => (RWConnection 'Read -> Eff es a) -> Eff es a
 useReadConnection = send . UseReadConnection
 
-useWriteConnection :: (HasCallStack, SQLite :> es) => (Connection 'Write -> Eff es a) -> Eff es a
+useWriteConnection :: (HasCallStack, SQLite :> es) => (RWConnection 'Write -> Eff es a) -> Eff es a
 useWriteConnection = send . UseWriteConnection
 
 ----------------------------------------------------------------------------
@@ -83,8 +83,8 @@ runSQLiteWithPools pools action = do
     action
 
 data Pools = Pools
-  { readPool :: Pool.Pool (Connection 'Read),
-    writePool :: Pool.Pool (Connection 'Write)
+  { readPool :: Pool.Pool (RWConnection 'Read),
+    writePool :: Pool.Pool (RWConnection 'Write)
   }
 
 newPools :: (MonadUnliftIO m) => PoolsConfig -> m Pools
@@ -94,8 +94,8 @@ newPools (PoolsConfig readPoolConfig writePoolConfig) = do
   pure Pools {readPool, writePool}
 
 data PoolsConfig = PoolsConfig
-  { readPoolConfig :: Pool.PoolConfig (Connection 'Read),
-    writePoolConfig :: Pool.PoolConfig (Connection 'Write)
+  { readPoolConfig :: Pool.PoolConfig (RWConnection 'Read),
+    writePoolConfig :: Pool.PoolConfig (RWConnection 'Write)
   }
 
 newPoolsConfig ::
@@ -118,7 +118,7 @@ newPoolsConfig ::
 newPoolsConfig mkReadConn readTTLSeconds readMaxResources mkWriteConn writeTTLSeconds = do
   readPoolConfig <-
     Pool.mkDefaultPoolConfig
-      (Connection @'Read <$> mkReadConn)
+      (RWConnection @'Read <$> mkReadConn)
       (liftIO . S.close . getConn)
       readTTLSeconds
       readMaxResources
@@ -126,7 +126,7 @@ newPoolsConfig mkReadConn readTTLSeconds readMaxResources mkWriteConn writeTTLSe
   let writeMaxConns = 1
   writePoolConfig <-
     Pool.mkDefaultPoolConfig
-      (Connection @'Write <$> mkWriteConn)
+      (RWConnection @'Write <$> mkWriteConn)
       (liftIO . S.close . getConn)
       writeTTLSeconds
       writeMaxConns
@@ -136,87 +136,87 @@ newPoolsConfig mkReadConn readTTLSeconds readMaxResources mkWriteConn writeTTLSe
 -- Operations
 ----------------------------------------------------------------------------
 
-query :: (SQLite :> es) => (ToRow q, FromRow r) => Connection mode -> Query -> q -> Eff es [r]
+query :: (SQLite :> es) => (ToRow q, FromRow r) => RWConnection mode -> Query -> q -> Eff es [r]
 query conn q params = unsafeEff_ $ S.query conn.getConn q params
 
-query_ :: (SQLite :> es) => (FromRow r) => Connection mode -> Query -> Eff es [r]
+query_ :: (SQLite :> es) => (FromRow r) => RWConnection mode -> Query -> Eff es [r]
 query_ conn q = unsafeEff_ $ S.query_ conn.getConn q
 
-queryWith :: (SQLite :> es) => (ToRow q) => RowParser r -> Connection mode -> Query -> q -> Eff es [r]
+queryWith :: (SQLite :> es) => (ToRow q) => RowParser r -> RWConnection mode -> Query -> q -> Eff es [r]
 queryWith parser conn q params = unsafeEff_ $ S.queryWith parser conn.getConn q params
 
-queryWith_ :: (SQLite :> es) => RowParser r -> Connection mode -> Query -> Eff es [r]
+queryWith_ :: (SQLite :> es) => RowParser r -> RWConnection mode -> Query -> Eff es [r]
 queryWith_ parser conn q = unsafeEff_ $ S.queryWith_ parser conn.getConn q
 
-queryNamed :: (SQLite :> es) => (FromRow r) => Connection mode -> Query -> [NamedParam] -> Eff es [r]
+queryNamed :: (SQLite :> es) => (FromRow r) => RWConnection mode -> Query -> [NamedParam] -> Eff es [r]
 queryNamed conn q params = unsafeEff_ $ S.queryNamed conn.getConn q params
 
-lastInsertRowId :: (SQLite :> es) => Connection mode -> Eff es Int64
+lastInsertRowId :: (SQLite :> es) => RWConnection mode -> Eff es Int64
 lastInsertRowId = unsafeEff_ . S.lastInsertRowId . getConn
 
-changes :: (SQLite :> es) => Connection mode -> Eff es Int
+changes :: (SQLite :> es) => RWConnection mode -> Eff es Int
 changes = unsafeEff_ . S.changes . getConn
 
-totalChanges :: (SQLite :> es) => Connection mode -> Eff es Int
+totalChanges :: (SQLite :> es) => RWConnection mode -> Eff es Int
 totalChanges = unsafeEff_ . S.totalChanges . getConn
 
-fold :: (SQLite :> es) => (FromRow row, ToRow params) => Connection mode -> Query -> params -> a -> (a -> row -> Eff es a) -> Eff es a
+fold :: (SQLite :> es) => (FromRow row, ToRow params) => RWConnection mode -> Query -> params -> a -> (a -> row -> Eff es a) -> Eff es a
 fold conn q params initialState action =
   unsafeEffWithUnlift \unlift -> do
     S.fold conn.getConn q params initialState \a row ->
       unlift $ action a row
 
-fold_ :: (SQLite :> es) => (FromRow row) => Connection mode -> Query -> a -> (a -> row -> Eff es a) -> Eff es a
+fold_ :: (SQLite :> es) => (FromRow row) => RWConnection mode -> Query -> a -> (a -> row -> Eff es a) -> Eff es a
 fold_ conn q initialState action =
   unsafeEffWithUnlift \unlift -> do
     S.fold_ conn.getConn q initialState \a row ->
       unlift $ action a row
 
-foldNamed :: (SQLite :> es) => (FromRow row) => Connection mode -> Query -> [NamedParam] -> a -> (a -> row -> Eff es a) -> Eff es a
+foldNamed :: (SQLite :> es) => (FromRow row) => RWConnection mode -> Query -> [NamedParam] -> a -> (a -> row -> Eff es a) -> Eff es a
 foldNamed conn q params initialState action =
   unsafeEffWithUnlift \unlift -> do
     S.foldNamed conn.getConn q params initialState \a row ->
       unlift $ action a row
 
-execute :: (SQLite :> es) => (ToRow q) => Connection 'Write -> Query -> q -> Eff es ()
+execute :: (SQLite :> es) => (ToRow q) => RWConnection 'Write -> Query -> q -> Eff es ()
 execute conn q params = unsafeEff_ $ S.execute conn.getConn q params
 
-execute_ :: (SQLite :> es) => Connection 'Write -> Query -> Eff es ()
+execute_ :: (SQLite :> es) => RWConnection 'Write -> Query -> Eff es ()
 execute_ conn q = unsafeEff_ $ S.execute_ conn.getConn q
 
-executeMany :: (SQLite :> es) => (ToRow q) => Connection 'Write -> Query -> [q] -> Eff es ()
+executeMany :: (SQLite :> es) => (ToRow q) => RWConnection 'Write -> Query -> [q] -> Eff es ()
 executeMany conn q params = unsafeEff_ $ S.executeMany conn.getConn q params
 
-executeNamed :: (SQLite :> es) => Connection 'Write -> Query -> [NamedParam] -> Eff es ()
+executeNamed :: (SQLite :> es) => RWConnection 'Write -> Query -> [NamedParam] -> Eff es ()
 executeNamed conn q params = unsafeEff_ $ S.executeNamed conn.getConn q params
 
-withTransaction :: (SQLite :> es) => Connection mode -> Eff es a -> Eff es a
+withTransaction :: (SQLite :> es) => RWConnection mode -> Eff es a -> Eff es a
 withTransaction conn action =
   unsafeEffWithUnlift \unlift -> do
     S.withTransaction conn.getConn $ unlift action
 
-withImmediateTransaction :: (SQLite :> es) => Connection 'Write -> Eff es a -> Eff es a
+withImmediateTransaction :: (SQLite :> es) => RWConnection 'Write -> Eff es a -> Eff es a
 withImmediateTransaction conn action =
   unsafeEffWithUnlift \unlift -> do
     S.withImmediateTransaction conn.getConn $ unlift action
 
-withExclusiveTransaction :: (SQLite :> es) => Connection 'Write -> Eff es a -> Eff es a
+withExclusiveTransaction :: (SQLite :> es) => RWConnection 'Write -> Eff es a -> Eff es a
 withExclusiveTransaction conn action =
   unsafeEffWithUnlift \unlift -> do
     S.withExclusiveTransaction conn.getConn $ unlift action
 
-withSavepoint :: (SQLite :> es) => Connection 'Write -> Eff es a -> Eff es a
+withSavepoint :: (SQLite :> es) => RWConnection 'Write -> Eff es a -> Eff es a
 withSavepoint conn action =
   unsafeEffWithUnlift \unlift -> do
     S.withSavepoint conn.getConn $ unlift action
 
-openStatement :: (SQLite :> es) => Connection 'Write -> Query -> Eff es Statement
+openStatement :: (SQLite :> es) => RWConnection 'Write -> Query -> Eff es Statement
 openStatement conn q = unsafeEff_ $ S.openStatement conn.getConn q
 
 closeStatement :: (SQLite :> es) => Statement -> Eff es ()
 closeStatement stmt = unsafeEff_ $ S.closeStatement stmt
 
-withStatement :: (SQLite :> es) => Connection 'Write -> Query -> (Statement -> Eff es a) -> Eff es a
+withStatement :: (SQLite :> es) => RWConnection 'Write -> Query -> (Statement -> Eff es a) -> Eff es a
 withStatement conn q action =
   unsafeEffWithUnlift \unlift -> do
     S.withStatement conn.getConn q (unlift . action)
