@@ -12,9 +12,9 @@ import Database.SQLite.Simple qualified as SS
 import Effectful
 import Effectful.Concurrent (Concurrent, runConcurrent, threadDelay)
 import Effectful.Labeled (Labeled)
-import Effectful.SQLite.Simple.Internal qualified as S
-import Effectful.SQLite.Simple.Internal.Labeled qualified as L
-import Effectful.SQLite.Simple.Internal.RW qualified as RW
+import Effectful.SQLite.Simple qualified as S
+import Effectful.SQLite.Simple.Labeled qualified as L
+import Effectful.SQLite.Simple.RW qualified as RW
 import GHC.Conc qualified as Conc
 import System.Environment (getArgs)
 import System.Exit (die)

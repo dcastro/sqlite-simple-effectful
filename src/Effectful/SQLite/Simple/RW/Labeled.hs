@@ -1,9 +1,8 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
-{-# OPTIONS_HADDOCK not-home #-}
 
-module Effectful.SQLite.Simple.Internal.RWLabeled where
+module Effectful.SQLite.Simple.RW.Labeled where
 
 import Data.Int (Int64)
 import Data.Text (Text)
@@ -14,8 +13,8 @@ import Effectful
 import Effectful.Dispatch.Dynamic (send)
 import Effectful.Dispatch.Static (seqUnliftIO, unsafeEff, unsafeEff_)
 import Effectful.Labeled (Labeled (..), runLabeled)
-import Effectful.SQLite.Simple.Internal.RW (ConnMode (..), SQLite)
-import Effectful.SQLite.Simple.Internal.RW qualified as RW
+import Effectful.SQLite.Simple.RW (ConnMode (..), SQLite)
+import Effectful.SQLite.Simple.RW qualified as RW
 import GHC.Stack (HasCallStack)
 
 ----------------------------------------------------------------------------

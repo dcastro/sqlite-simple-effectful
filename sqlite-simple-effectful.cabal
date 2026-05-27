@@ -28,10 +28,9 @@ source-repository head
 library
   exposed-modules:
       Effectful.SQLite.Simple
-      Effectful.SQLite.Simple.Internal
-      Effectful.SQLite.Simple.Internal.Labeled
-      Effectful.SQLite.Simple.Internal.RW
-      Effectful.SQLite.Simple.Internal.RWLabeled
+      Effectful.SQLite.Simple.Labeled
+      Effectful.SQLite.Simple.RW
+      Effectful.SQLite.Simple.RW.Labeled
   other-modules:
       Paths_sqlite_simple_effectful
   autogen-modules:

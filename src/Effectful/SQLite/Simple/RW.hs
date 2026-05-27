@@ -1,9 +1,8 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
-{-# OPTIONS_HADDOCK not-home #-}
 
-module Effectful.SQLite.Simple.Internal.RW where
+module Effectful.SQLite.Simple.RW where
 
 import Data.Int (Int64)
 import Data.Text (Text)

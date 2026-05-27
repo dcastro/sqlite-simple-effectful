@@ -1,9 +1,8 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
-{-# OPTIONS_HADDOCK not-home #-}
 
-module Effectful.SQLite.Simple.Internal.Labeled where
+module Effectful.SQLite.Simple.Labeled where
 
 import Data.Int (Int64)
 import Data.Text (Text)
@@ -16,8 +15,8 @@ import Effectful.Concurrent.MVar (MVar)
 import Effectful.Dispatch.Dynamic (send)
 import Effectful.Dispatch.Static (seqUnliftIO, unsafeEff, unsafeEff_)
 import Effectful.Labeled
-import Effectful.SQLite.Simple.Internal (SQLite)
-import Effectful.SQLite.Simple.Internal qualified as Internal
+import Effectful.SQLite.Simple (SQLite)
+import Effectful.SQLite.Simple qualified as SQL
 import GHC.Stack (HasCallStack)
 
 ----------------------------------------------------------------------------
@@ -27,7 +26,7 @@ import GHC.Stack (HasCallStack)
 newtype Connection (label :: k) = Connection {getConn :: S.Connection}
 
 useConnection :: forall label es a. (Labeled label SQLite :> es) => (Connection label -> Eff es a) -> Eff es a
-useConnection use = send $ Labeled @label $ Internal.UseConnection \conn -> use (Connection conn)
+useConnection use = send $ Labeled @label $ SQL.UseConnection \conn -> use (Connection conn)
 
 ----------------------------------------------------------------------------
 -- Interpreters
@@ -37,13 +36,13 @@ runSQLiteUnsync ::
   forall label es a.
   (HasCallStack, IOE :> es) =>
   S.Connection -> Eff (Labeled label SQLite ': es) a -> Eff es a
-runSQLiteUnsync = runLabeled @label . Internal.runSQLiteUnsync
+runSQLiteUnsync = runLabeled @label . SQL.runSQLiteUnsync
 
 runSQLiteSync ::
   forall label es a.
   (HasCallStack, IOE :> es, Concurrent :> es) =>
   MVar S.Connection -> Eff (Labeled label SQLite ': es) a -> Eff es a
-runSQLiteSync = runLabeled @label . Internal.runSQLiteSync
+runSQLiteSync = runLabeled @label . SQL.runSQLiteSync
 
 ----------------------------------------------------------------------------
 -- Operations
