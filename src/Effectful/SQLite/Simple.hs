@@ -96,9 +96,6 @@ import GHC.Stack (HasCallStack)
 -- >>> import Effectful.SQLite.Simple (FromRow(fromRow))
 -- >>> data User
 -- >>> instance FromRow User where fromRow = undefined
--- >>> import Effectful
--- >>> import Effectful.SQLite.Simple (SQLite)
--- >>> import Effectful.SQLite.Simple qualified as SQL
 
 ----------------------------------------------------------------------------
 -- Effect
@@ -175,22 +172,6 @@ runSQLiteUnsync conn =
 -- * The connection must not escape the scope of `useConnection`.
 -- * `useConnection` calls must not be nested.
 -- * When used together with other locking primitives, the locks must always be acquired in the same order to avoid deadlocks, e.g.:
---
--- >>> import Effectful.Concurrent (Concurrent)
--- >>> import Effectful.Concurrent.MVar (MVar)
--- >>> import Effectful.Concurrent.MVar qualified as EMVar
--- >>> :{
--- f :: (SQLite :> es, Concurrent :> es) => MVar Int -> Eff es ()
--- f mv = do
---   SQL.useConnection \conn -> do
---     EMVar.withMVar mv \i -> do
---       pure ()
--- g :: (SQLite :> es, Concurrent :> es) => MVar Int -> Eff es ()
--- g mv = do
---   EMVar.withMVar mv \i -> do
---     SQL.useConnection \conn -> do
---       pure ()
--- :}
 runSQLiteSync ::
   (HasCallStack, IOE :> es, Concurrent :> es) =>
   MVar Connection -> Eff (SQLite ': es) a -> Eff es a
