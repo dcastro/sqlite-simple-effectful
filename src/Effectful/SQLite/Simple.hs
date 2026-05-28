@@ -1,9 +1,11 @@
+{-# LANGUAGE OverloadedRecordDot #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 module Effectful.SQLite.Simple
   ( -- * Effects
     SQLite (..),
     useConnection,
+    SConnection (..),
 
     -- * Interpreters
     runSQLiteUnsync,
@@ -93,12 +95,15 @@ import GHC.Stack (HasCallStack)
 ----------------------------------------------------------------------------
 
 data SQLite :: Effect where
-  UseConnection :: (Connection -> m a) -> SQLite m a
+  UseConnection :: (SConnection s -> m a) -> SQLite m a
 
 type instance DispatchOf SQLite = 'Dynamic
 
-useConnection :: (HasCallStack, SQLite :> es) => (Connection -> Eff es a) -> Eff es a
-useConnection = send . UseConnection
+useConnection :: (HasCallStack, SQLite :> es) => (forall s. SConnection s -> Eff es a) -> Eff es a
+useConnection use = send $ UseConnection use
+
+-- | A "scoped connection" that can only be used in the scope of `useConnection`.
+newtype SConnection (s :: k) = SConnection {getConn :: S.Connection}
 
 ----------------------------------------------------------------------------
 -- Interpreters
@@ -110,7 +115,7 @@ runSQLiteUnsync ::
 runSQLiteUnsync conn =
   interpret \env -> \case
     UseConnection f ->
-      localSeqUnlift env \unlift -> unlift $ f conn
+      localSeqUnlift env \unlift -> unlift $ f (SConnection conn)
 
 runSQLiteSync ::
   (HasCallStack, IOE :> es, Concurrent :> es) =>
@@ -120,7 +125,7 @@ runSQLiteSync connVar = do
     UseConnection f ->
       localSeqUnlift env \unlift -> do
         MVar.withMVar connVar \conn -> do
-          unlift $ f conn
+          unlift $ f (SConnection conn)
 
 ----------------------------------------------------------------------------
 -- Operations
@@ -136,90 +141,90 @@ Notes:
 
 -}
 
-query :: (SQLite :> es) => (ToRow q, FromRow r) => Connection -> Query -> q -> Eff es [r]
-query conn q params = unsafeEff_ $ S.query conn q params
+query :: (SQLite :> es) => (ToRow q, FromRow r) => SConnection s -> Query -> q -> Eff es [r]
+query conn q params = unsafeEff_ $ S.query conn.getConn q params
 
-query_ :: (SQLite :> es) => (FromRow r) => Connection -> Query -> Eff es [r]
-query_ conn q = unsafeEff_ $ S.query_ conn q
+query_ :: (SQLite :> es) => (FromRow r) => SConnection s -> Query -> Eff es [r]
+query_ conn q = unsafeEff_ $ S.query_ conn.getConn q
 
-queryWith :: (SQLite :> es) => (ToRow q) => RowParser r -> Connection -> Query -> q -> Eff es [r]
-queryWith parser conn q params = unsafeEff_ $ S.queryWith parser conn q params
+queryWith :: (SQLite :> es) => (ToRow q) => RowParser r -> SConnection s -> Query -> q -> Eff es [r]
+queryWith parser conn q params = unsafeEff_ $ S.queryWith parser conn.getConn q params
 
-queryWith_ :: (SQLite :> es) => RowParser r -> Connection -> Query -> Eff es [r]
-queryWith_ parser conn q = unsafeEff_ $ S.queryWith_ parser conn q
+queryWith_ :: (SQLite :> es) => RowParser r -> SConnection s -> Query -> Eff es [r]
+queryWith_ parser conn q = unsafeEff_ $ S.queryWith_ parser conn.getConn q
 
-queryNamed :: (SQLite :> es) => (FromRow r) => Connection -> Query -> [NamedParam] -> Eff es [r]
-queryNamed conn q params = unsafeEff_ $ S.queryNamed conn q params
+queryNamed :: (SQLite :> es) => (FromRow r) => SConnection s -> Query -> [NamedParam] -> Eff es [r]
+queryNamed conn q params = unsafeEff_ $ S.queryNamed conn.getConn q params
 
-lastInsertRowId :: (SQLite :> es) => Connection -> Eff es Int64
-lastInsertRowId = unsafeEff_ . S.lastInsertRowId
+lastInsertRowId :: (SQLite :> es) => SConnection s -> Eff es Int64
+lastInsertRowId = unsafeEff_ . S.lastInsertRowId . getConn
 
-changes :: (SQLite :> es) => Connection -> Eff es Int
-changes = unsafeEff_ . S.changes
+changes :: (SQLite :> es) => SConnection s -> Eff es Int
+changes = unsafeEff_ . S.changes . getConn
 
-totalChanges :: (SQLite :> es) => Connection -> Eff es Int
-totalChanges = unsafeEff_ . S.totalChanges
+totalChanges :: (SQLite :> es) => SConnection s -> Eff es Int
+totalChanges = unsafeEff_ . S.totalChanges . getConn
 
-fold :: (SQLite :> es) => (FromRow row, ToRow params) => Connection -> Query -> params -> a -> (a -> row -> Eff es a) -> Eff es a
+fold :: (SQLite :> es) => (FromRow row, ToRow params) => SConnection s -> Query -> params -> a -> (a -> row -> Eff es a) -> Eff es a
 fold conn q params initialState action =
   unsafeEffWithUnlift \unlift -> do
-    S.fold conn q params initialState \a row ->
+    S.fold conn.getConn q params initialState \a row ->
       unlift $ action a row
 
-fold_ :: (SQLite :> es) => (FromRow row) => Connection -> Query -> a -> (a -> row -> Eff es a) -> Eff es a
+fold_ :: (SQLite :> es) => (FromRow row) => SConnection s -> Query -> a -> (a -> row -> Eff es a) -> Eff es a
 fold_ conn q initialState action =
   unsafeEffWithUnlift \unlift -> do
-    S.fold_ conn q initialState \a row ->
+    S.fold_ conn.getConn q initialState \a row ->
       unlift $ action a row
 
-foldNamed :: (SQLite :> es) => (FromRow row) => Connection -> Query -> [NamedParam] -> a -> (a -> row -> Eff es a) -> Eff es a
+foldNamed :: (SQLite :> es) => (FromRow row) => SConnection s -> Query -> [NamedParam] -> a -> (a -> row -> Eff es a) -> Eff es a
 foldNamed conn q params initialState action =
   unsafeEffWithUnlift \unlift -> do
-    S.foldNamed conn q params initialState \a row ->
+    S.foldNamed conn.getConn q params initialState \a row ->
       unlift $ action a row
 
-execute :: (SQLite :> es) => (ToRow q) => Connection -> Query -> q -> Eff es ()
-execute conn q params = unsafeEff_ $ S.execute conn q params
+execute :: (SQLite :> es) => (ToRow q) => SConnection s -> Query -> q -> Eff es ()
+execute conn q params = unsafeEff_ $ S.execute conn.getConn q params
 
-execute_ :: (SQLite :> es) => Connection -> Query -> Eff es ()
-execute_ conn q = unsafeEff_ $ S.execute_ conn q
+execute_ :: (SQLite :> es) => SConnection s -> Query -> Eff es ()
+execute_ conn q = unsafeEff_ $ S.execute_ conn.getConn q
 
-executeMany :: (SQLite :> es) => (ToRow q) => Connection -> Query -> [q] -> Eff es ()
-executeMany conn q params = unsafeEff_ $ S.executeMany conn q params
+executeMany :: (SQLite :> es) => (ToRow q) => SConnection s -> Query -> [q] -> Eff es ()
+executeMany conn q params = unsafeEff_ $ S.executeMany conn.getConn q params
 
-executeNamed :: (SQLite :> es) => Connection -> Query -> [NamedParam] -> Eff es ()
-executeNamed conn q params = unsafeEff_ $ S.executeNamed conn q params
+executeNamed :: (SQLite :> es) => SConnection s -> Query -> [NamedParam] -> Eff es ()
+executeNamed conn q params = unsafeEff_ $ S.executeNamed conn.getConn q params
 
-withTransaction :: (SQLite :> es) => Connection -> Eff es a -> Eff es a
+withTransaction :: (SQLite :> es) => SConnection s -> Eff es a -> Eff es a
 withTransaction conn action =
   unsafeEffWithUnlift \unlift -> do
-    S.withTransaction conn $ unlift action
+    S.withTransaction conn.getConn $ unlift action
 
-withImmediateTransaction :: (SQLite :> es) => Connection -> Eff es a -> Eff es a
+withImmediateTransaction :: (SQLite :> es) => SConnection s -> Eff es a -> Eff es a
 withImmediateTransaction conn action =
   unsafeEffWithUnlift \unlift -> do
-    S.withImmediateTransaction conn $ unlift action
+    S.withImmediateTransaction conn.getConn $ unlift action
 
-withExclusiveTransaction :: (SQLite :> es) => Connection -> Eff es a -> Eff es a
+withExclusiveTransaction :: (SQLite :> es) => SConnection s -> Eff es a -> Eff es a
 withExclusiveTransaction conn action =
   unsafeEffWithUnlift \unlift -> do
-    S.withExclusiveTransaction conn $ unlift action
+    S.withExclusiveTransaction conn.getConn $ unlift action
 
-withSavepoint :: (SQLite :> es) => Connection -> Eff es a -> Eff es a
+withSavepoint :: (SQLite :> es) => SConnection s -> Eff es a -> Eff es a
 withSavepoint conn action =
   unsafeEffWithUnlift \unlift -> do
-    S.withSavepoint conn $ unlift action
+    S.withSavepoint conn.getConn $ unlift action
 
-openStatement :: (SQLite :> es) => Connection -> Query -> Eff es Statement
-openStatement conn q = unsafeEff_ $ S.openStatement conn q
+openStatement :: (SQLite :> es) => SConnection s -> Query -> Eff es Statement
+openStatement conn q = unsafeEff_ $ S.openStatement conn.getConn q
 
 closeStatement :: (SQLite :> es) => Statement -> Eff es ()
 closeStatement stmt = unsafeEff_ $ S.closeStatement stmt
 
-withStatement :: (SQLite :> es) => Connection -> Query -> (Statement -> Eff es a) -> Eff es a
+withStatement :: (SQLite :> es) => SConnection s -> Query -> (Statement -> Eff es a) -> Eff es a
 withStatement conn q action =
   unsafeEffWithUnlift \unlift -> do
-    S.withStatement conn q (unlift . action)
+    S.withStatement conn.getConn q (unlift . action)
 
 bind :: (SQLite :> es) => (ToRow params) => Statement -> params -> Eff es ()
 bind stmt params = unsafeEff_ $ S.bind stmt params

@@ -166,6 +166,18 @@ example5 = do
     Async.wait handleReader2
     Async.wait handleWriter
   where
+    reader2 :: (S.SQLite :> es, IOE :> es) => String -> Eff es ()
+    reader2 label = do
+      sc <- S.useConnection \conn -> do
+        res <- S.query_ @_ @(Only Int) conn "SELECT COUNT(*) FROM test"
+        liftIO $ putStrLn $ "Read from " <> label <> ": " <> show res
+        pure $ SomeConn conn
+
+      case sc of
+        SomeConn conn -> do
+          res <- S.query_ @_ @(Only Int) conn "SELECT COUNT(*) FROM test"
+          liftIO $ putStrLn $ "Read from " <> label <> ": " <> show res
+      reader2 label
     reader :: (RW.SQLite :> es, IOE :> es) => String -> Eff es ()
     reader label = do
       RW.useReadConnection \conn -> do
@@ -178,3 +190,6 @@ example5 = do
         RW.execute conn "INSERT INTO test (value) VALUES ('Hello, world!')" ()
         liftIO $ putStrLn $ "Inserted by " <> label
       writer label
+
+data SomeConn where
+  SomeConn :: S.SConnection s -> SomeConn

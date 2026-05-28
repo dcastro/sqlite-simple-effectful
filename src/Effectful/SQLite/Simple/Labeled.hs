@@ -100,7 +100,9 @@ import GHC.Stack (HasCallStack)
 newtype LConnection (label :: k) = LConnection {getConn :: S.Connection}
 
 useConnection :: forall label es a. (Labeled label SQLite :> es) => (LConnection label -> Eff es a) -> Eff es a
-useConnection use = send $ Labeled @label $ SQL.UseConnection \conn -> use (LConnection conn)
+useConnection use = undefined
+
+-- useConnection use = send $ Labeled @label $ SQL.UseConnection \conn -> use (LConnection conn)
 
 ----------------------------------------------------------------------------
 -- Interpreters
