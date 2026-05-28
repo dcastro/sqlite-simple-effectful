@@ -1,5 +1,41 @@
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
+{- ORMOLU_DISABLE -}
+{- | A dynamic effect that lets us use a SQLite `Connection`, without specifying __how__ that connection is supplied.
+
+Supported interpreters:
+
+  * 'runSQLiteUnsync' - Runs a single-threaded action with a single connection.
+  * 'runSQLiteSync' - Runs an action with a single connection shared across multiple threads.
+
+To use multiple connections, see "Effectful.SQLite.Simple.Labeled".
+
+>>> import Effectful
+>>> import Effectful.Concurrent (runConcurrent)
+>>> import Effectful.SQLite.Simple (SQLite)
+>>> import Effectful.SQLite.Simple qualified as SQL
+>>> import GHC.MVar qualified as MVar
+
+>>> :{
+app :: (SQLite :> es) => Eff es [User]
+app = do
+  SQL.useConnection \conn -> do
+    SQL.query_ conn "SELECT * FROM users"
+:}
+
+>>> :{
+main :: IO [User]
+main =
+  SQL.withConnection "users.db" \conn -> do
+    connVar <- MVar.newMVar conn
+    app
+      & SQL.runSQLiteSync connVar
+      & runConcurrent
+      & runEff
+:}
+
+-}
+{- ORMOLU_ENABLE -}
 module Effectful.SQLite.Simple
   ( -- * Effects
     SQLite (..),
@@ -101,42 +137,6 @@ import GHC.Stack (HasCallStack)
 -- Effect
 ----------------------------------------------------------------------------
 
-{- ORMOLU_DISABLE -}
-{- | A dynamic effect that lets us use a SQLite `Connection`, without specifying __how__ that connection is supplied.
-
-Supported interpreters:
-
-  * 'runSQLiteUnsync' - Runs a single-threaded action with a single connection.
-  * 'runSQLiteSync' - Runs an action with a single connection shared across multiple threads.
-
-To use multiple connections, see "Effectful.SQLite.Simple.Labeled".
-
->>> import Effectful
->>> import Effectful.Concurrent (runConcurrent)
->>> import Effectful.SQLite.Simple (SQLite)
->>> import Effectful.SQLite.Simple qualified as SQL
->>> import GHC.MVar qualified as MVar
-
->>> :{
-app :: (SQLite :> es) => Eff es [User]
-app = do
-  SQL.useConnection \conn -> do
-    SQL.query_ conn "SELECT * FROM users"
-:}
-
->>> :{
-main :: IO [User]
-main =
-  SQL.withConnection "users.db" \conn -> do
-    connVar <- MVar.newMVar conn
-    app
-      & SQL.runSQLiteSync connVar
-      & runConcurrent
-      & runEff
-:}
-
--}
-{- ORMOLU_ENABLE -}
 data SQLite :: Effect where
   UseConnection :: (Connection -> m a) -> SQLite m a
 
