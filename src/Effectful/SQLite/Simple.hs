@@ -88,15 +88,70 @@ import Effectful.Dispatch.Dynamic (interpret, localSeqUnlift, send)
 import Effectful.Dispatch.Static (seqUnliftIO, unsafeEff, unsafeEff_)
 import GHC.Stack (HasCallStack)
 
+-- $setup
+-- Clear all imports before running doctests
+-- >>> :m
+-- >>> :set -XOverloadedStrings
+-- >>> import Data.Function ((&))
+-- >>> import Effectful.SQLite.Simple (FromRow(fromRow))
+-- >>> data User
+-- >>> instance FromRow User where fromRow = undefined
+-- >>> import Effectful
+-- >>> import Effectful.SQLite.Simple (SQLite)
+-- >>> import Effectful.SQLite.Simple qualified as SQL
+
 ----------------------------------------------------------------------------
 -- Effect
 ----------------------------------------------------------------------------
 
+{- ORMOLU_DISABLE -}
+{- | A dynamic effect that lets us use a SQLite `Connection`, without specifying __how__ that connection is supplied.
+
+Supported interpreters:
+
+  * 'runSQLiteUnsync' - Runs a single-threaded action with a single connection.
+  * 'runSQLiteSync' - Runs an action with a single connection shared across multiple threads.
+
+To use multiple connections, see "Effectful.SQLite.Simple.Labeled".
+
+>>> import Effectful
+>>> import Effectful.Concurrent (runConcurrent)
+>>> import Effectful.SQLite.Simple (SQLite)
+>>> import Effectful.SQLite.Simple qualified as SQL
+>>> import GHC.MVar qualified as MVar
+
+>>> :{
+app :: (SQLite :> es) => Eff es [User]
+app = do
+  SQL.useConnection \conn -> do
+    SQL.query_ conn "SELECT * FROM users"
+:}
+
+>>> :{
+main :: IO [User]
+main =
+  SQL.withConnection "users.db" \conn -> do
+    connVar <- MVar.newMVar conn
+    app
+      & SQL.runSQLiteSync connVar
+      & runConcurrent
+      & runEff
+:}
+
+-}
+{- ORMOLU_ENABLE -}
 data SQLite :: Effect where
   UseConnection :: (Connection -> m a) -> SQLite m a
 
 type instance DispatchOf SQLite = 'Dynamic
 
+-- | Retrieve the connection from the context and run the given action with it.
+--
+-- __WARNING__:
+--
+-- * The connection must not escape the scope of `useConnection`.
+-- * `useConnection` calls must not be nested.
+-- * When used together with other locking primitives, the locks must always be acquired in the same order to avoid deadlocks.
 useConnection :: (HasCallStack, SQLite :> es) => (Connection -> Eff es a) -> Eff es a
 useConnection = send . UseConnection
 
@@ -104,6 +159,7 @@ useConnection = send . UseConnection
 -- Interpreters
 ----------------------------------------------------------------------------
 
+-- | Runs a single-threaded action with a single connection.
 runSQLiteUnsync ::
   (HasCallStack, IOE :> es) =>
   Connection -> Eff (SQLite ': es) a -> Eff es a
@@ -112,6 +168,29 @@ runSQLiteUnsync conn =
     UseConnection f ->
       localSeqUnlift env \unlift -> unlift $ f conn
 
+-- | Runs an action with a single connection shared across multiple threads.
+--
+-- __WARNING__: Since this interpreter is backed by an `MVar`, the usual caveats apply:
+--
+-- * The connection must not escape the scope of `useConnection`.
+-- * `useConnection` calls must not be nested.
+-- * When used together with other locking primitives, the locks must always be acquired in the same order to avoid deadlocks, e.g.:
+--
+-- >>> import Effectful.Concurrent (Concurrent)
+-- >>> import Effectful.Concurrent.MVar (MVar)
+-- >>> import Effectful.Concurrent.MVar qualified as EMVar
+-- >>> :{
+-- f :: (SQLite :> es, Concurrent :> es) => MVar Int -> Eff es ()
+-- f mv = do
+--   SQL.useConnection \conn -> do
+--     EMVar.withMVar mv \i -> do
+--       pure ()
+-- g :: (SQLite :> es, Concurrent :> es) => MVar Int -> Eff es ()
+-- g mv = do
+--   EMVar.withMVar mv \i -> do
+--     SQL.useConnection \conn -> do
+--       pure ()
+-- :}
 runSQLiteSync ::
   (HasCallStack, IOE :> es, Concurrent :> es) =>
   MVar Connection -> Eff (SQLite ': es) a -> Eff es a

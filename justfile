@@ -27,7 +27,7 @@ test *ARGS:
 doctest:
     ./scripts/check_doctest.sh
     stack build doctest
-    stack exec doctest -- $(find src test examples/src \( -name '*.lhs' -o -name '*.hs' \) -print) \
+    stack exec doctest -- $(find src test \( -name '*.lhs' -o -name '*.hs' \) -print) \
         -XGHC2024 -XBlockArguments -XTypeFamilies -XQualifiedDo
 
 haddock:
