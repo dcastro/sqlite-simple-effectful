@@ -2,6 +2,50 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
+{- ORMOLU_DISABLE -}
+{- | A `SQLite` effect with a label attached, allowing multiple SQLite connections to be used in the same program.
+
+Supported interpreters:
+
+  * 'runSQLiteUnsync' - Runs a single-threaded action with a single connection.
+  * 'runSQLiteSync' - Runs an action with a single connection shared across multiple threads.
+
+>>> :set -XTypeApplications
+>>> import Effectful
+>>> import Effectful.Concurrent (runConcurrent)
+>>> import Effectful.SQLite.Simple.Labeled (Labeled, SQLite)
+>>> import Effectful.SQLite.Simple.Labeled qualified as SQL
+>>> import GHC.MVar qualified as MVar
+
+>>> :{
+app ::
+  (Labeled "users" SQLite :> es)  =>
+  (Labeled "products" SQLite :> es)  =>
+  Eff es ()
+app = do
+  users <- SQL.useConnection @"users" \usersConn -> do
+    SQL.query_ @_ @_ @User usersConn "SELECT * FROM users"
+  products <- SQL.useConnection @"products" \productsConn -> do
+    SQL.query_ @_ @_ @Product productsConn "SELECT * FROM products"
+  pure ()
+:}
+
+>>> :{
+main :: IO ()
+main =
+  SQL.withConnection "users.db" \usersConn -> do
+    SQL.withConnection "products.db" \productsConn -> do
+      usersConnVar <- MVar.newMVar usersConn
+      productsConnVar <- MVar.newMVar productsConn
+      app
+        & SQL.runSQLiteSync @"users" usersConnVar
+        & SQL.runSQLiteSync @"products" productsConnVar
+        & runConcurrent
+        & runEff
+:}
+
+-}
+{- ORMOLU_ENABLE -}
 module Effectful.SQLite.Simple.Labeled
   ( -- * Effects
     Labeled,
@@ -94,12 +138,48 @@ import Effectful.SQLite.Simple (SQLite)
 import Effectful.SQLite.Simple qualified as SQL
 import GHC.Stack (HasCallStack)
 
+-- $setup
+-- Clear all imports before running doctests
+-- >>> :m
+-- >>> :set -XOverloadedStrings
+-- >>> import Data.Function ((&))
+-- >>> import Effectful.SQLite.Simple (FromRow(fromRow))
+-- >>> data User
+-- >>> instance FromRow User where fromRow = undefined
+-- >>> data Product
+-- >>> instance FromRow Product where fromRow = undefined
+
 ----------------------------------------------------------------------------
 -- Effect
 ----------------------------------------------------------------------------
 
+-- | A labeled connection.
 newtype LConnection (label :: k) = LConnection {getConn :: S.Connection}
 
+-- | Retrieve the connection from the context and run the given action with it.
+--
+-- __WARNING__:
+--
+-- * The connection must not escape the scope of `useConnection`.
+-- * `useConnection` calls must not be nested.
+-- * When used together with other locking primitives, the locks must always be acquired in the same order to avoid deadlocks.
+--
+-- E.g., in the example below, the connections to the 2 databases are acquired out of order, which could lead to a deadlock.
+--
+-- >>> :{
+-- import Effectful
+-- import Effectful.SQLite.Simple.Labeled (Labeled, SQLite)
+-- import Effectful.SQLite.Simple.Labeled qualified as SQL
+-- f, g :: (Labeled "users" SQLite :> es, Labeled "products" SQLite :> es) => Eff es ()
+-- f = do
+--   SQL.useConnection @"users" \usersConn -> do
+--     SQL.useConnection @"products" \productsConn -> do
+--       pure ()
+-- g = do
+--   SQL.useConnection @"products" \productsConn -> do
+--    SQL.useConnection @"users" \usersConn -> do
+--       pure ()
+-- :}
 useConnection :: forall label es a. (Labeled label SQLite :> es) => (LConnection label -> Eff es a) -> Eff es a
 useConnection use = send $ Labeled @label $ SQL.UseConnection \conn -> use (LConnection conn)
 
@@ -107,12 +187,20 @@ useConnection use = send $ Labeled @label $ SQL.UseConnection \conn -> use (LCon
 -- Interpreters
 ----------------------------------------------------------------------------
 
+-- | Runs a single-threaded action with a single connection.
 runSQLiteUnsync ::
   forall label es a.
   (HasCallStack, IOE :> es) =>
   S.Connection -> Eff (Labeled label SQLite ': es) a -> Eff es a
 runSQLiteUnsync = runLabeled @label . SQL.runSQLiteUnsync
 
+-- | Runs an action with a single connection shared across multiple threads.
+--
+-- __WARNING__: Since this interpreter is backed by an `MVar`, the usual caveats apply:
+--
+-- * The connection must not escape the scope of `useConnection`.
+-- * `useConnection` calls must not be nested.
+-- * When used together with other locking primitives, the locks must always be acquired in the same order to avoid deadlocks.
 runSQLiteSync ::
   forall label es a.
   (HasCallStack, IOE :> es, Concurrent :> es) =>

@@ -171,7 +171,7 @@ runSQLiteUnsync conn =
 --
 -- * The connection must not escape the scope of `useConnection`.
 -- * `useConnection` calls must not be nested.
--- * When used together with other locking primitives, the locks must always be acquired in the same order to avoid deadlocks, e.g.:
+-- * When used together with other locking primitives, the locks must always be acquired in the same order to avoid deadlocks.
 runSQLiteSync ::
   (HasCallStack, IOE :> es, Concurrent :> es) =>
   MVar Connection -> Eff (SQLite ': es) a -> Eff es a
