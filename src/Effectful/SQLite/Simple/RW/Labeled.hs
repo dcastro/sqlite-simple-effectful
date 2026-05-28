@@ -4,6 +4,7 @@
 
 module Effectful.SQLite.Simple.RW.Labeled
   ( -- * Effects
+    Labeled,
     SQLite (..),
     useReadConnection,
     useWriteConnection,

@@ -4,6 +4,7 @@
 
 module Effectful.SQLite.Simple.Labeled
   ( -- * Effects
+    Labeled,
     SQLite (..),
     useConnection,
     LConnection (..),
