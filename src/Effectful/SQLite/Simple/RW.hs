@@ -5,15 +5,17 @@
 {- ORMOLU_DISABLE -}
 {- | A dynamic effect that lets us use a __pooled__ SQLite `Database.SQLite.Simple.Connection`.
 
-To avoid write contention and performance degradation, the interpreter is backed by 2 pools of connections:
-one for write operations, with a fixed capacity of 1, and another for read operations, with a configurable capacity.
+SQLite allows multiple connections to read/write concurrently, but concurrent writes will lead to contention and performance degradation, and @SQLITE_BUSY@ errors.
+We avoid this by:
+  * Having separate pools for reading and writing.
+  * Configuring the write pool to have a maximum of 1 connection, thus serializing all writes.
 
 __WARNING__: This interpreter sets the database's journal mode to [WAL](https://sqlite.org/wal.html),
 so that readers will not block the writer and the writer will not block readers.
 
 Note that even in WAL mode, [@SQLITE_BUSY@ errors can still occur](https://sqlite.org/wal.html#sometimes_queries_return_sqlite_busy_in_wal_mode).
 
-To use multiple connections, see "Effectful.SQLite.Simple.RW.Labeled".
+To connect to multiple databases, see "Effectful.SQLite.Simple.RW.Labeled".
 
 >>> import Effectful
 >>> import Effectful.Concurrent (runConcurrent)
@@ -193,12 +195,6 @@ useWriteConnection = send . UseWriteConnection
 ----------------------------------------------------------------------------
 
 -- | Interprets the 'SQLite' effect by using 2 connection pools for reading and writing.
---
--- SQLite allows multiple connections to read/write concurrently, but concurrent writes will lead to @SQLITE_BUSY@ errors.
--- We avoid this by:
---
---   * Having separate pools for reading and writing.
---   * Configuring the write pool to have a maximum of 1 connection, thus serializing all writes.
 --
 -- __WARNING__: This interpreter sets the database's journal mode to [WAL](https://sqlite.org/wal.html),
 -- so that readers will not block the writer and the writer will not block readers.

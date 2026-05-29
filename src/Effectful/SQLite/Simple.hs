@@ -8,7 +8,7 @@ Supported interpreters:
   * 'runSQLiteUnsync' - Runs a single-threaded action with a single connection.
   * 'runSQLiteSync' - Runs an action with a single connection shared across multiple threads.
 
-To use multiple connections, see "Effectful.SQLite.Simple.Labeled".
+To connect to multiple databases, see "Effectful.SQLite.Simple.Labeled".
 
 >>> import Effectful
 >>> import Effectful.Concurrent (runConcurrent)

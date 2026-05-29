@@ -3,7 +3,7 @@
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
 {- ORMOLU_DISABLE -}
-{- | A `SQLite` effect with a label attached, allowing multiple SQLite connections to be used in the same program.
+{- | A `SQLite` effect with a label attached, allowing multiple SQLite databases to be used in the same program.
 
 Supported interpreters:
 
