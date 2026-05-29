@@ -7,11 +7,10 @@ import Control.Concurrent.Async qualified as Async
 import Control.Concurrent.MVar qualified as MVar
 import Control.Monad (forever)
 import Data.Function ((&))
-import Database.SQLite.Simple (Only)
 import Database.SQLite.Simple qualified as SS
 import Effectful
 import Effectful.Concurrent (Concurrent, runConcurrent, threadDelay)
-import Effectful.Labeled (Labeled)
+import Effectful.SQLite.Simple (Connection, Only (..))
 import Effectful.SQLite.Simple qualified as S
 import Effectful.SQLite.Simple.Labeled qualified as L
 import Effectful.SQLite.Simple.RW qualified as RW
@@ -34,7 +33,7 @@ main = do
 
 example1 :: IO ()
 example1 = do
-  c <- SS.open ":memory:"
+  c <- S.open ":memory:"
   mv <- MVar.newMVar c
   t1 & S.runSQLiteSync mv & runConcurrent & runEff
   where
@@ -56,8 +55,8 @@ While handling thread blocked indefinitely in an STM transaction
  -}
 example2 :: IO ()
 example2 = do
-  cx <- SS.open ":memory:"
-  cy <- SS.open ":memory:"
+  cx <- L.open ":memory:"
+  cy <- L.open ":memory:"
   mvx <- MVar.newMVar cx
   mvy <- MVar.newMVar cy
   handlexy <- Async.async $ xy & L.runSQLiteSync @"x" mvx & L.runSQLiteSync @"y" mvy & runConcurrent & runEff
@@ -65,7 +64,7 @@ example2 = do
   Async.wait handlexy >> Async.wait handleyx
 
 -- | Acquires the "x" connection and then the "y" connection.
-xy :: (Labeled "x" S.SQLite :> es, Labeled "y" S.SQLite :> es, Concurrent :> es) => Eff es ()
+xy :: (L.Labeled "x" L.SQLite :> es, L.Labeled "y" L.SQLite :> es, Concurrent :> es) => Eff es ()
 xy = do
   L.useConnection @"x" \_conn1 -> do
     threadDelay 1_e6
@@ -73,7 +72,7 @@ xy = do
       pure ()
 
 -- | Acquires the "y" connection and then the "x" connection.
-yx :: (Labeled "x" S.SQLite :> es, Labeled "y" S.SQLite :> es, Concurrent :> es) => Eff es ()
+yx :: (L.Labeled "x" L.SQLite :> es, L.Labeled "y" L.SQLite :> es, Concurrent :> es) => Eff es ()
 yx = do
   L.useConnection @"y" \_conn1 -> do
     threadDelay 1_e6
@@ -106,11 +105,11 @@ example3 = do
       Async.wait handleWriter
       Async.wait handleReader2
   where
-    reader :: SS.Connection -> String -> IO ()
+    reader :: Connection -> String -> IO ()
     reader conn label = do
-      [SS.Only count] <- SS.query_ @(Only Int) conn "SELECT COUNT(*) FROM test"
+      [Only count] <- SS.query_ @(Only Int) conn "SELECT COUNT(*) FROM test"
       liftIO $ putStrLn $ "Read from " <> label <> ": " <> show count
-    writer :: SS.Connection -> String -> IO ()
+    writer :: Connection -> String -> IO ()
     writer conn label = do
       SS.execute conn "INSERT INTO test (value) VALUES ('Hello, world!')" ()
       liftIO $ putStrLn $ "Inserted by " <> label
@@ -130,7 +129,7 @@ example4 = do
 
       writeConn <- SS.open dbPath
       readConn <- SS.open dbPath
-      [SS.Only count] <- SS.query_ @(Only Int) readConn "SELECT COUNT(*) FROM test"
+      [S.Only count] <- SS.query_ @(Only Int) readConn "SELECT COUNT(*) FROM test"
       liftIO $ putStrLn $ "Read from " <> "1" <> ": " <> show count
       SS.execute writeConn "INSERT INTO test (value) VALUES ('Hello, world!')" ()
       liftIO $ putStrLn $ "Inserted by " <> "1"
@@ -142,16 +141,16 @@ alleviates the problem.
 example5 :: IO ()
 example5 = do
   Temp.withSystemTempFile "sqlite-simple-effectful-example.db" \dbPath _dbHandle -> do
-    SS.withConnection dbPath \conn -> do
+    RW.withConnection dbPath \conn -> do
       SS.execute_ conn "CREATE TABLE IF NOT EXISTS test (id INTEGER PRIMARY KEY, value TEXT)"
 
     pools <-
       RW.newPools
         =<< RW.newPoolsConfig
-          (SS.open dbPath)
+          (RW.open dbPath)
           10
           10
-          (SS.open dbPath)
+          (RW.open dbPath)
           10
 
     -- Add some delay, so that the threads don't start their connections all at once.
