@@ -6,7 +6,7 @@ set -euo pipefail
 `doctest` will ignore any "doctests" (marked with `>>>`) that are not
 part of a haddock comment (marked with `-- |`)
 or a haddock block comment (marked with `{- |`)
-or a setup block (marked with `-- $setup`).
+or a named documentation chunk (marked with `-- $<name>`, e.g. `-- $setup`).
 
 This script ensures that all doctests are properly marked with a pipe `|` to be recognized by `doctest`.
 
@@ -46,6 +46,11 @@ myFunc :: IO ()
 ```
 
 ```hs
+-- $examples
+-- >>> 1 + 1
+```
+
+```hs
 {- | Some text
 
 >>> 1 + 1
@@ -58,7 +63,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 while IFS= read -r -d '' file; do
 
-  # 1st check: Lines starting with `-- >>>` must be preceded by a line with `-- |` or `$setup`.
+  # 1st check: Lines starting with `-- >>>` must be preceded by a line with `-- |` or `-- $<name>`.
 
   # Split the grepped line by the character ':' into line number and content
   while IFS=: read -r line match; do
@@ -73,13 +78,13 @@ while IFS= read -r -d '' file; do
       # Allow `-- >>>` when it belongs to a contiguous Haddock comment block
       # that started with `-- |` or `-- $setup`.
       scan_line_number=$prev_line_number
-      in_setup_block=false
+      in_named_chunk=false
       in_haddock_block=false
       while (( scan_line_number >= 1 )); do
         scan_line=$(sed -n "${scan_line_number}p" "$file")
 
-        if [[ $scan_line =~ ^[[:space:]]*--[[:space:]]*\$setup[[:space:]]*$ ]]; then
-          in_setup_block=true
+        if [[ $scan_line =~ ^[[:space:]]*--[[:space:]]*\$[^[:space:]]+[[:space:]]*$ ]]; then
+          in_named_chunk=true
           break
         fi
 
@@ -98,7 +103,7 @@ while IFS= read -r -d '' file; do
         break
       done
 
-      if [[ $in_setup_block == true ]]; then
+      if [[ $in_named_chunk == true ]]; then
         continue
       fi
 
