@@ -54,6 +54,9 @@ main = do
 module Effectful.SQLite.Simple.RW
   ( -- * Effects
     SQLite (..),
+
+    -- * Use connection
+    -- $useConnection
     useReadConnection,
     useWriteConnection,
     RWConnection (..),
@@ -174,27 +177,28 @@ data SQLite :: Effect where
 
 type instance DispatchOf SQLite = 'Dynamic
 
+{- ORMOLU_DISABLE -}
+{- $useConnection
+
+The `useReadConnection` and `useWriteConnection` operations retrieve a pooled connection from the context that can be used to run "read" or "write" operations.
+
+If the action throws an exception of any type, the connection is closed and not returned to the pool.
+
+__WARNING__:
+
+* The connection must not be manually closed.
+* The connection must not escape the scope of `useReadConnection` or `useWriteConnection`.
+* `useWriteConnection` calls must not be nested.
+* When used together with other locking primitives, the locks must always be acquired in the same order to avoid deadlocks.
+
+-}
+{- ORMOLU_ENABLE -}
+
 -- | Retrieve the connection from the context and run the given "read" operations with it.
---
--- If the action throws an exception of any type, the connection is closed and not returned to the pool.
---
--- __WARNING__:
---
--- * The connection must not be manually closed.
--- * The connection must not escape the scope of `useReadConnection`.
 useReadConnection :: (HasCallStack, SQLite :> es) => (RWConnection 'Read -> Eff es a) -> Eff es a
 useReadConnection = send . UseReadConnection
 
--- | Retrieve the connection from the context and run the given "write" operations with it.
---
--- If the action throws an exception of any type, the connection is closed and not returned to the pool.
---
--- __WARNING__:
---
--- * The connection must not be manually closed.
--- * The connection must not escape the scope of `useWriteConnection`.
--- * `useWriteConnection` calls must not be nested.
--- * When used together with other locking primitives, the locks must always be acquired in the same order to avoid deadlocks.
+-- | Retrieve the connection from the context and run the given "read" or "write" operations with it.
 useWriteConnection :: (HasCallStack, SQLite :> es) => (RWConnection 'Write -> Eff es a) -> Eff es a
 useWriteConnection = send . UseWriteConnection
 

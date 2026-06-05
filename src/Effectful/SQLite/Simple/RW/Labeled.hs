@@ -59,6 +59,9 @@ module Effectful.SQLite.Simple.RW.Labeled
   ( -- * Effects
     Labeled,
     SQLite (..),
+
+    -- * Use connection
+    -- $useConnection
     useReadConnection,
     useWriteConnection,
     LRWConnection (..),
@@ -173,27 +176,28 @@ import GHC.Stack (HasCallStack)
 -- This determines which kind of operations can be performed with the connection.
 newtype LRWConnection (label :: k) (mode :: RW.ConnMode) = LRWConnection {getConn :: RW.RWConnection mode}
 
+{- ORMOLU_DISABLE -}
+{- $useConnection
+
+The `useReadConnection` and `useWriteConnection` operations retrieve a pooled connection from the context that can be used to run "read" or "write" operations.
+
+If the action throws an exception of any type, the connection is closed and not returned to the pool.
+
+__WARNING__:
+
+* The connection must not be manually closed.
+* The connection must not escape the scope of `useReadConnection` or `useWriteConnection`.
+* `useWriteConnection` calls must not be nested.
+* When used together with other locking primitives, the locks must always be acquired in the same order to avoid deadlocks.
+
+-}
+{- ORMOLU_ENABLE -}
+
 -- | Retrieve the connection from the context and run the given "read" operations with it.
---
--- If the action throws an exception of any type, the connection is closed and not returned to the pool.
---
--- __WARNING__:
---
--- * The connection must not be manually closed.
--- * The connection must not escape the scope of `useReadConnection`.
 useReadConnection :: forall label es a. (HasCallStack, Labeled label SQLite :> es) => (LRWConnection label 'Read -> Eff es a) -> Eff es a
 useReadConnection use = send $ Labeled @label $ RW.UseReadConnection \conn -> use (LRWConnection conn)
 
--- | Retrieve the connection from the context and run the given "write" operations with it.
---
--- If the action throws an exception of any type, the connection is closed and not returned to the pool.
---
--- __WARNING__:
---
--- * The connection must not be manually closed.
--- * The connection must not escape the scope of `useWriteConnection`.
--- * `useWriteConnection` calls must not be nested.
--- * When used together with other locking primitives, the locks must always be acquired in the same order to avoid deadlocks.
+-- | Retrieve the connection from the context and run the given "read" or "write" operations with it.
 useWriteConnection :: forall label es a. (HasCallStack, Labeled label SQLite :> es) => (LRWConnection label 'Write -> Eff es a) -> Eff es a
 useWriteConnection use = send $ Labeled @label $ RW.UseWriteConnection \conn -> use (LRWConnection conn)
 
