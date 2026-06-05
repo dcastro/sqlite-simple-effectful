@@ -6,7 +6,7 @@ set -euo pipefail
 `doctest` will ignore any "doctests" (marked with `>>>`) that are not
 part of a haddock comment (marked with `-- |`)
 or a haddock block comment (marked with `{- |`)
-or a named documentation chunk (marked with `-- $<name>`, e.g. `-- $setup`).
+or a named documentation chunk (marked with `-- $<name>` or `{- $<name>`, e.g. `-- $setup`).
 
 This script ensures that all doctests are properly marked with a pipe `|` to be recognized by `doctest`.
 
@@ -51,6 +51,12 @@ myFunc :: IO ()
 ```
 
 ```hs
+{- $examples
+>>> 1 + 1
+-}
+```
+
+```hs
 {- | Some text
 
 >>> 1 + 1
@@ -58,7 +64,7 @@ myFunc :: IO ()
 ```
 
 Notes:
-* If there's more than one space in `-- |`, `{- |` or `-- $<name>`, doctest will ignore those tests.
+* If there's more than one space in `-- |`, `{- |`, `-- $<name>` or `{- $<name>`, doctest will ignore those tests.
   For that reason, this script will flag lines like `--    | >>> 1 + 1`.
 
 END
@@ -87,7 +93,7 @@ while IFS= read -r -d '' file; do
       while (( scan_line_number >= 1 )); do
         scan_line=$(sed -n "${scan_line_number}p" "$file")
 
-        if [[ $scan_line =~ ^[[:space:]]*--[[:space:]]\$[^[:space:]]+[[:space:]]*$ ]]; then
+        if [[ $scan_line =~ ^[[:space:]]*--[[:space:]]\$[^[:space:]] ]] then
           in_named_chunk=true
           break
         fi
@@ -118,12 +124,12 @@ while IFS= read -r -d '' file; do
 
     echo "Invalid doctest marker in $file:" >&2
     echo "${line}:${match}" >&2
-    echo 'This test will be ignored by doctest; ensure it is inside Haddock docs (`-- |` or `{- |`).' >&2
+    echo 'This test will be ignored by doctest; ensure it is inside Haddock docs (`-- |`) or a named documentation chunk (`-- $<name>`).' >&2
     exit 1
     # Scan for lines starting with `-- >>>`
   done < <(grep -nE '^[[:space:]]*--[[:space:]]+>>>' "$file" || true)
 
-  # 2nd check: Lines starting with `>>>` must be inside a block comment that starts with `{- |`.
+  # 2nd check: Lines starting with `>>>` must be inside a block comment that starts with `{- |` or `{- $<name>`.
 
   # Split the grepped line by the character ':' into line number and content.
   while IFS=: read -r line match; do
@@ -132,7 +138,7 @@ while IFS= read -r -d '' file; do
     fi
 
     # Allow plain `>>>` only when it appears inside a Haddock block comment
-    # that starts with `{- |`.
+    # that starts with `{- |` or `{- $<name>`.
     scan_line_number=$line
     in_block_comment=false
     in_haddock_block=false
@@ -146,6 +152,12 @@ while IFS= read -r -d '' file; do
       fi
 
       if [[ $scan_line =~ \{-[[:space:]]\| ]]; then
+        in_block_comment=true
+        in_haddock_block=true
+        break
+      fi
+
+      if [[ $scan_line =~ \{-[[:space:]]\$[^[:space:]] ]]; then
         in_block_comment=true
         in_haddock_block=true
         break
@@ -165,7 +177,7 @@ while IFS= read -r -d '' file; do
 
     echo "Invalid doctest marker in $file:" >&2
     echo "${line}:${match}" >&2
-    echo 'This test will be ignored by doctest; ensure it is inside Haddock docs (`-- |` or `{- |`).' >&2
+    echo 'This test will be ignored by doctest; ensure it is inside Haddock docs (`{- |`) or a named documentation chunk (`{- $<name>`).' >&2
     exit 1
     # Scan for plain doctest prompts like `>>> 1 + 1`.
   done < <(grep -nE '^[[:space:]]*>>>[[:space:]]+' "$file" || true)
