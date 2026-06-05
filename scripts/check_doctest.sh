@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-: '
+: <<'END'
 
 `doctest` will ignore any "doctests" (marked with `>>>`) that are not
 part of a haddock comment (marked with `-- |`)
@@ -57,7 +57,11 @@ myFunc :: IO ()
 -}
 ```
 
-'
+Notes:
+* If there's more than one space in `-- |`, `{- |` or `-- $<name>`, doctest will ignore those tests.
+  For that reason, this script will flag lines like `--    | >>> 1 + 1`.
+
+END
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
@@ -83,12 +87,12 @@ while IFS= read -r -d '' file; do
       while (( scan_line_number >= 1 )); do
         scan_line=$(sed -n "${scan_line_number}p" "$file")
 
-        if [[ $scan_line =~ ^[[:space:]]*--[[:space:]]*\$[^[:space:]]+[[:space:]]*$ ]]; then
+        if [[ $scan_line =~ ^[[:space:]]*--[[:space:]]\$[^[:space:]]+[[:space:]]*$ ]]; then
           in_named_chunk=true
           break
         fi
 
-        if [[ $scan_line =~ ^[[:space:]]*--[[:space:]]*\| ]]; then
+        if [[ $scan_line =~ ^[[:space:]]*--[[:space:]]\| ]]; then
           in_haddock_block=true
           break
         fi
@@ -141,7 +145,7 @@ while IFS= read -r -d '' file; do
         break
       fi
 
-      if [[ $scan_line =~ \{-[[:space:]]*\| ]]; then
+      if [[ $scan_line =~ \{-[[:space:]]\| ]]; then
         in_block_comment=true
         in_haddock_block=true
         break
