@@ -189,7 +189,7 @@ __WARNING__:
 * The connection must not be manually closed.
 * The connection must not escape the scope of `useReadConnection` or `useWriteConnection`.
 * `useWriteConnection` calls must not be nested.
-* When used together with other locking primitives, the locks must always be acquired in the same order to avoid deadlocks.
+* When `useWriteConnection` is used together with other locking primitives, the locks must always be acquired in the same order to avoid deadlocks.
 
 -}
 {- ORMOLU_ENABLE -}

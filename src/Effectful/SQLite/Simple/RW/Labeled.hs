@@ -188,9 +188,9 @@ __WARNING__:
 * The connection must not be manually closed.
 * The connection must not escape the scope of `useReadConnection` or `useWriteConnection`.
 * `useWriteConnection` calls must not be nested.
-* When used together with other locking primitives, the locks must always be acquired in the same order to avoid deadlocks.
+* When `useWriteConnection` is used together with other locking primitives, the locks must always be acquired in the same order to avoid deadlocks.
 
-E.g., in the example below, the connections to the 2 databases are acquired out of order, which could lead to a deadlock.
+E.g., in the example below, the "write" connections to the 2 databases are acquired out of order, which could lead to a deadlock.
 
 >>> :{
 import Effectful
