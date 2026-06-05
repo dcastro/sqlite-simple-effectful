@@ -2,6 +2,59 @@
 {-# LANGUAGE OverloadedRecordDot #-}
 {-# OPTIONS_GHC -Wno-redundant-constraints #-}
 
+{- ORMOLU_DISABLE -}
+{- | A __pooled__ `SQLite` effect with a label attached, allowing multiple SQLite databases to be used in the same program.
+
+SQLite allows multiple connections to read/write concurrently, but concurrent writes will lead to contention and performance degradation, and @SQLITE_BUSY@ errors.
+We avoid this by:
+  * Having separate pools for reading and writing.
+  * Configuring the write pool to have a maximum of 1 connection, thus serializing all writes.
+
+__WARNING__: This interpreter sets the database's journal mode to [WAL](https://sqlite.org/wal.html),
+so that readers will not block the writer and the writer will not block readers.
+
+Note that even in WAL mode, [@SQLITE_BUSY@ errors can still occur](https://sqlite.org/wal.html#sometimes_queries_return_sqlite_busy_in_wal_mode).
+
+>>> import Effectful
+>>> import Effectful.Concurrent (runConcurrent)
+>>> import Effectful.SQLite.Simple.RW.Labeled (Labeled, SQLite)
+>>> import Effectful.SQLite.Simple.RW.Labeled qualified as SQL
+
+>>> :{
+app ::
+  (Labeled "users" SQLite :> es)  =>
+  (Labeled "products" SQLite :> es)  =>
+  Eff es ()
+app = do
+  users <- SQL.useWriteConnection @"users" \usersConn -> do
+    SQL.execute usersConn "DELETE FROM users WHERE username = ?" (SQL.Only "dcastro")
+  products <- SQL.useReadConnection @"products" \productsConn -> do
+    SQL.query_ @_ @_ @Product productsConn "SELECT * FROM products"
+  pure ()
+:}
+
+>>> :{
+main :: IO ()
+main = do
+  let mkPools dbPath =
+        SQL.newPools
+          =<< SQL.newPoolsConfig
+            (SQL.open dbPath) -- Action to create a new read connection.
+            60                -- Read connections' idle timeout in seconds.
+            32                -- Max number of read connections.
+            (SQL.open dbPath) -- Action to create a new write connection.
+            60                -- Write connections' idle timeout in seconds.
+  userPools <- mkPools "users.db"
+  productPools <- mkPools "products.db"
+  app
+    & SQL.runSQLiteWithPools @"users" userPools
+    & SQL.runSQLiteWithPools @"products" productPools
+    & runConcurrent
+    & runEff
+:}
+
+-}
+{- ORMOLU_ENABLE -}
 module Effectful.SQLite.Simple.RW.Labeled
   ( -- * Effects
     Labeled,
@@ -97,6 +150,17 @@ import Effectful.SQLite.Simple.RW (ConnMode (..), SQLite)
 import Effectful.SQLite.Simple.RW qualified as RW
 import GHC.Stack (HasCallStack)
 
+-- $setup
+-- Clear all imports before running doctests
+-- >>> :m
+-- >>> :set -XOverloadedStrings
+-- >>> import Data.Function ((&))
+-- >>> import Effectful.SQLite.Simple (FromRow(fromRow))
+-- >>> data User
+-- >>> instance FromRow User where fromRow = undefined
+-- >>> data Product
+-- >>> instance FromRow Product where fromRow = undefined
+
 ----------------------------------------------------------------------------
 -- Effect
 ----------------------------------------------------------------------------
@@ -105,11 +169,31 @@ import GHC.Stack (HasCallStack)
   The rationale for having separate "read" and "write" pools has been documented here: @(ref:concurrency)
 -}
 
+-- | A labelled connection that can be acquired in "read" or "write" mode.
+-- This determines which kind of operations can be performed with the connection.
 newtype LRWConnection (label :: k) (mode :: RW.ConnMode) = LRWConnection {getConn :: RW.RWConnection mode}
 
+-- | Retrieve the connection from the context and run the given "read" operations with it.
+--
+-- If the action throws an exception of any type, the connection is closed and not returned to the pool.
+--
+-- __WARNING__:
+--
+-- * The connection must not be manually closed.
+-- * The connection must not escape the scope of `useReadConnection`.
 useReadConnection :: forall label es a. (HasCallStack, Labeled label SQLite :> es) => (LRWConnection label 'Read -> Eff es a) -> Eff es a
 useReadConnection use = send $ Labeled @label $ RW.UseReadConnection \conn -> use (LRWConnection conn)
 
+-- | Retrieve the connection from the context and run the given "write" operations with it.
+--
+-- If the action throws an exception of any type, the connection is closed and not returned to the pool.
+--
+-- __WARNING__:
+--
+-- * The connection must not be manually closed.
+-- * The connection must not escape the scope of `useWriteConnection`.
+-- * `useWriteConnection` calls must not be nested.
+-- * When used together with other locking primitives, the locks must always be acquired in the same order to avoid deadlocks.
 useWriteConnection :: forall label es a. (HasCallStack, Labeled label SQLite :> es) => (LRWConnection label 'Write -> Eff es a) -> Eff es a
 useWriteConnection use = send $ Labeled @label $ RW.UseWriteConnection \conn -> use (LRWConnection conn)
 
@@ -118,12 +202,6 @@ useWriteConnection use = send $ Labeled @label $ RW.UseWriteConnection \conn -> 
 ----------------------------------------------------------------------------
 
 -- | Interprets the 'SQLite' effect by using 2 connection pools for reading and writing.
---
--- SQLite allows multiple connections to read/write concurrently, but concurrent writes will lead to @SQLITE_BUSY@ errors.
--- We avoid this by:
---
---   * Having separate pools for reading and writing.
---   * Configuring the write pool to have a maximum of 1 connection, thus serializing all writes.
 --
 -- __WARNING__: This interpreter sets the database's journal mode to [WAL](https://sqlite.org/wal.html),
 -- so that readers will not block the writer and the writer will not block readers.

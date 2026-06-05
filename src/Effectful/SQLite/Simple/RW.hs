@@ -165,7 +165,7 @@ import UnliftIO.Pool qualified as Pool
 data ConnMode = Read | Write
 
 -- | A connection that can be acquired in "read" or "write" mode.
--- This determins which kind of operations can be performed with the connection.
+-- This determines which kind of operations can be performed with the connection.
 newtype RWConnection (mode :: ConnMode) = RWConnection {getConn :: S.Connection}
 
 data SQLite :: Effect where
