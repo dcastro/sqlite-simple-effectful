@@ -27,7 +27,7 @@ app :: (SQLite :> es) => Eff es ()
 app = do
   SQL.useWriteConnection \conn -> do
     SQL.withImmediateTransaction conn do
-      SQL.query_ @_ @User conn "SELECT * FROM users"
+      SQL.query_ @User conn "SELECT * FROM users"
       SQL.execute conn "DELETE FROM users WHERE username = ?" (SQL.Only "dcastro")
 :}
 

@@ -29,7 +29,7 @@ app = do
   users <- SQL.useWriteConnection @"users" \usersConn -> do
     SQL.execute usersConn "DELETE FROM users WHERE username = ?" (SQL.Only "dcastro")
   products <- SQL.useReadConnection @"products" \productsConn -> do
-    SQL.query_ @_ @_ @Product productsConn "SELECT * FROM products"
+    SQL.query_ @Product productsConn "SELECT * FROM products"
   pure ()
 :}
 

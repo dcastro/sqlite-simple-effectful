@@ -24,9 +24,9 @@ app ::
   Eff es ()
 app = do
   users <- SQL.useConnection @"users" \usersConn -> do
-    SQL.query_ @_ @_ @User usersConn "SELECT * FROM users"
+    SQL.query_ @User usersConn "SELECT * FROM users"
   products <- SQL.useConnection @"products" \productsConn -> do
-    SQL.query_ @_ @_ @Product productsConn "SELECT * FROM products"
+    SQL.query_ @Product productsConn "SELECT * FROM products"
   pure ()
 :}
 

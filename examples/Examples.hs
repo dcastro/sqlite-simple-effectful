@@ -40,7 +40,7 @@ example1 = do
     t1 :: (S.SQLite :> es, IOE :> es) => Eff es ()
     t1 = do
       S.useConnection \conn -> do
-        res <- S.query_ @_ @(Only Int) conn "SELECT 1 + 3"
+        res <- S.query_ @(Only Int) conn "SELECT 1 + 3"
         liftIO $ print res
         pure ()
 
@@ -168,7 +168,7 @@ example5 = do
     reader :: (RW.SQLite :> es, IOE :> es) => String -> Eff es ()
     reader label = do
       RW.useReadConnection \conn -> do
-        res <- RW.query_ @_ @(Only Int) conn "SELECT COUNT(*) FROM test"
+        res <- RW.query_ @(Only Int) conn "SELECT COUNT(*) FROM test"
         liftIO $ putStrLn $ "Read from " <> label <> ": " <> show res
       reader label
     writer :: (RW.SQLite :> es, IOE :> es) => String -> Eff es ()
