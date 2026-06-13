@@ -5,6 +5,7 @@ default:
 checks:
     just doctest
     just haddock
+    just pandoc
     # check markdown links
     xrefcheck --ignore "release/**/*"
     # Check cross-references "ref:" in the repo
@@ -35,6 +36,9 @@ haddock-fw:
 haddock-hackage *ARGS:
     cabal update
     cabal haddock lib:sqlite-simple-effectful --haddock-for-hackage {{ ARGS }}
+
+pandoc:
+    ./scripts/run_pandoc.sh
 
 ############################################################################
 ## Release

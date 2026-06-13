@@ -2,3 +2,4 @@ resolver: nightly-2026-05-06
 
 packages:
   - .
+  - docs
