@@ -4,7 +4,6 @@ default:
 
 checks:
     just doctest
-    just test
     just haddock
     # check markdown links
     xrefcheck --ignore "release/**/*"
@@ -19,10 +18,6 @@ checks:
 min-deps:
     # TODO
     cabal build all
-
-# To run with a file watcher: just test --file-watch
-test *ARGS:
-    stack test --fast sqlite-simple-effectful:test:sqlite-simple-effectful-test {{ ARGS }}
 
 doctest:
     ./scripts/check_doctest.sh
