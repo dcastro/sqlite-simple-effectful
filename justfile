@@ -17,8 +17,15 @@ checks:
 
 # Build the project with the lowest supported version of each dependency.
 min-deps:
-    # TODO
-    cabal build all
+    cabal build all \
+        --constraint='effectful ==2.4.0.0' \
+        --constraint='effectful-core ==2.4.0.0' \
+        --constraint='sqlite-simple ==0.4.19.0' \
+        --constraint='unliftio-pool ==0.4.2.0' \
+        --constraint='async ==2.2.5' \
+        --constraint='temporary ==1.3' \
+        --ghc-options="-Werror" \
+        --with-compiler=ghc-9.10.3
 
 doctest:
     ./scripts/check_doctest.sh
