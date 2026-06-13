@@ -135,6 +135,7 @@ module Effectful.SQLite.Simple.RW
   )
 where
 
+import Data.Function ((&))
 import Data.Int (Int64)
 import Data.Text (Text)
 import Database.SQLite.Simple (ColumnIndex, FromRow, NamedParam, Query, Statement, ToRow)
@@ -226,18 +227,15 @@ runSQLiteWithPools pools action = do
   Pool.withResource pools.writePool \conn -> do
     liftIO $ S.execute_ conn.getConn "PRAGMA journal_mode=WAL"
 
-  interpret
-    ( \env -> \case
-        UseReadConnection action -> do
-          localSeqUnlift env \unlift -> do
-            Pool.withResource pools.readPool \conn -> do
-              unlift $ action conn
-        UseWriteConnection action -> do
-          localSeqUnlift env \unlift -> do
-            Pool.withResource pools.writePool \conn -> do
-              unlift $ action conn
-    )
-    action
+  action & interpret \env -> \case
+    UseReadConnection action -> do
+      localSeqUnlift env \unlift -> do
+        Pool.withResource pools.readPool \conn -> do
+          unlift $ action conn
+    UseWriteConnection action -> do
+      localSeqUnlift env \unlift -> do
+        Pool.withResource pools.writePool \conn -> do
+          unlift $ action conn
 
 data Pools = Pools
   { readPool :: Pool.Pool (RWConnection 'Read),
