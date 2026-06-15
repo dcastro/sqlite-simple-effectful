@@ -14,7 +14,7 @@ library for the
 
 ## Getting started
 
-This package provided a dynamic `SQLite` effect that can be used to run
+This package provides a dynamic `SQLite` effect that can be used to run
 SQLite queries in an effectful context.
 
 Use `useConnection` to obtain a connection to the database and run
