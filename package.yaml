@@ -14,12 +14,22 @@ extra-doc-files:
 synopsis: Adaptation of the sqlite-simple library for the effectful ecosystem.
 description: Adaptation of the @<https://hackage.haskell.org/package/sqlite-simple sqlite-simple>@ library for the @<https://hackage.haskell.org/package/effectful effectful>@ ecosystem.
 
-language: GHC2024
-
 default-extensions:
   - BlockArguments
   - StrictData
   - TypeFamilies
+  - ImportQualifiedPost
+  - RankNTypes
+  - LambdaCase
+  - TypeOperators
+  - DataKinds
+  - NamedFieldPuns
+  - TypeApplications
+  - GADTs
+  - FlexibleContexts
+  - PolyKinds
+  - ScopedTypeVariables
+  - NumericUnderscores
 
 ghc-options:
   - -Weverything
@@ -37,7 +47,11 @@ ghc-options:
   - -Wno-prepositive-qualified-module
   - -Wno-missing-safe-haskell-mode
   - -Wno-missing-kind-signatures
-  - -Wno-missing-role-annotations
+when:
+  - condition: impl(ghc >= 9.8.1)
+    ghc-options:
+      - -Wno-missing-role-annotations
+
 library:
   source-dirs: src
   dependencies:

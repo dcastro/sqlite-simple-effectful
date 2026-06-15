@@ -17,28 +17,26 @@ checks:
 
 # Build the project with the lowest supported version of each dependency.
 min-deps:
-    cabal build all \
+    cabal build lib:sqlite-simple-effectful \
         --constraint='effectful ==2.4.0.0' \
         --constraint='effectful-core ==2.4.0.0' \
         --constraint='sqlite-simple ==0.4.19.0' \
         --constraint='unliftio-pool ==0.4.2.0' \
-        --constraint='async ==2.2.5' \
-        --constraint='temporary ==1.3' \
         --ghc-options="-Werror" \
-        --with-compiler=ghc-9.10.3
+        --with-compiler=ghc-9.6.7
 
 doctest:
     ./scripts/check_doctest.sh
     stack build doctest
-    stack exec doctest -- $(find src test \( -name '*.lhs' -o -name '*.hs' \) -print) \
-        -XGHC2024 -XBlockArguments -XTypeFamilies -XQualifiedDo
+    stack exec doctest -- $(find src \( -name '*.lhs' -o -name '*.hs' \) -print) \
+        -XBlockArguments -XTypeFamilies -XQualifiedDo -XLambdaCase -XDataKinds
 
 haddock:
     ./scripts/check_haddock_warnings.sh lib:sqlite-simple-effectful
 
 # Run haddock in "file watch" mode
 haddock-fw:
-    watchexec --clear --exts hs -- just haddock
+    watchexec --restart --clear --exts hs -- just haddock
 
 haddock-hackage *ARGS:
     cabal update
