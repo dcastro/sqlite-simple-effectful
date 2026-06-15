@@ -5,7 +5,7 @@
 {- ORMOLU_DISABLE -}
 {- | A __pooled__ `SQLite` effect with a label attached, allowing multiple SQLite databases to be used in the same program.
 
-SQLite allows multiple connections to read/write concurrently, but concurrent writes will lead to contention and performance degradation, and @SQLITE_BUSY@ errors.
+SQLite allows multiple connections to read/write concurrently, but concurrent writes will lead to contention, performance degradation, and @SQLITE_BUSY@ errors.
 We avoid this by:
   * Having separate pools for reading and writing.
   * Configuring the write pool to have a maximum of 1 connection, thus serializing all writes.

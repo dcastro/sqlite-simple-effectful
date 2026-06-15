@@ -7,12 +7,12 @@ By default, the user is meant to use `withConnection`, and then pass the connect
 But it also has a more convenient mode, where the user:
 
 * Does not have to use `withConnection`
-* Use the functions from `Effectful.PostgreSQL` (query, execute, etc) which internally call `withConnection` individually.
+* Use the functions from `Effectful.PostgreSQL` (query, execute, etc.) which internally call `withConnection` individually.
 
 There are some issues with this 2nd mode:
-* When running multiple sqlite statements with a "pooled" interpreter, this design would imply repeatedly acquiring and releasing a connection from the pool, unnecessarily.
+* When running multiple SQLite statements with a "pooled" interpreter, this design would imply repeatedly acquiring and releasing a connection from the pool, unnecessarily.
 * This design would not allow running the effect by creating a single connection that is guarded by an `MVar`. E.g.:
-    * Here, you could argue that `query` acquires the MVar, performs the query, then releases it:
+    * Here, you could argue that `query` acquires the `MVar`, performs the query, then releases it:
       ```hs11
       res <- query "SELECT ..."
       ```
@@ -40,7 +40,7 @@ Instead, I opted to:
 In `effectful-postgresql`, every SQL operation requires `IOE`.
 To avoid this, we internally used `unsafeEff`; this is actually safe, as long as all the `run*` interpreters require `IOE`.
 
-## SQLite :> es
+## `SQLite :> es`
 
 The db operations (see example below) do not really require the `SQLite es` effect.
 

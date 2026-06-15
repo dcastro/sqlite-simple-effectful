@@ -28,3 +28,8 @@ library:
   source-dirs: src
   dependencies:
     - base
+    - effectful
+    - effectful-core
+    - sqlite-simple-effectful
+    - sqlite-simple
+    - text

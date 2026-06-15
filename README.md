@@ -12,6 +12,127 @@ Adaptation of the
 library for the
 [effectful](https://hackage.haskell.org/package/effectful) ecosystem.
 
+## Getting started
+
+This package provided a dynamic `SQLite` effect that can be used to run
+SQLite queries in an effectful context.
+
+Use `useConnection` to obtain a connection to the database and run
+queries.
+
+``` haskell
+import Effectful.SQLite.Simple (SQLite)
+import Effectful.SQLite.Simple qualified as SQL
+
+import Effectful
+import Effectful.Concurrent (runConcurrent)
+import Data.Function ((&))
+import GHC.MVar qualified as MVar
+
+app :: (SQLite :> es) => Eff es [User]
+app = do
+  SQL.useConnection \conn -> do
+    SQL.query_ conn "SELECT * FROM users"
+```
+
+The effect can be interpreted with `runSQLiteUnsync`, suitable for
+single-threaded applications, or `runSQLiteSync`, which is safe to use
+in multi-threaded applications.
+
+``` haskell
+main :: IO [User]
+main =
+  SQL.withConnection "users.db" \conn -> do
+    connVar <- MVar.newMVar conn
+    app
+      & SQL.runSQLiteSync connVar
+      & runConcurrent
+      & runEff
+```
+
+## Pooled connections
+
+The module
+[`Effectful.SQLite.Simple.RW`](https://hackage.haskell.org/package/sqlite-simple-effectful/docs/Effectful-SQLite-Simple-RW.html)
+provides an interpreter backed by connection pools.
+
+SQLite allows multiple connections to read/write concurrently, but
+concurrent writes will lead to [contention, performance degradation, and
+SQLITE_BUSY
+errors](https://emschwartz.me/psa-your-sqlite-connection-pool-might-be-ruining-your-write-performance/).
+We avoid this by:
+
+- Having separate pools for reading and writing.
+- Configuring the write pool to have a maximum of 1 connection, thus
+  serializing all writes.
+
+We additionally set the database's journal mode to
+[WAL](https://sqlite.org/wal.html), so that readers will not block the
+writer and the writer will not block readers.
+
+Note that even in WAL mode, [SQLITE_BUSY errors can still
+occur](https://sqlite.org/wal.html#sometimes_queries_return_sqlite_busy_in_wal_mode).
+
+The `useReadConnection` and `useWriteConnection` operations retrieve a
+pooled connection from the context that can be used to run "read" or
+"write" operations.
+
+``` haskell
+import Effectful.SQLite.Simple.RW (SQLite)
+import Effectful.SQLite.Simple.RW qualified as SQL
+
+import Effectful
+import Effectful.Concurrent.Async (runConcurrent, concurrently)
+import Effectful.Fail (Fail, runFail)
+import Control.Monad (void)
+import Data.Function ((&))
+
+reader :: (SQLite :> es) => Eff es [User]
+reader = do
+  SQL.useReadConnection \conn -> do
+    SQL.query_ conn "SELECT * FROM users"
+
+writer :: (SQLite :> es, Fail :> es) => Eff es ()
+writer = do
+  SQL.useWriteConnection \conn -> do
+    SQL.withImmediateTransaction conn do
+      [userId :: SQL.Only UserId] <- SQL.query conn "SELECT id FROM users WHERE username = ?" (SQL.Only @Text "dcastro")
+      SQL.execute conn "DELETE FROM articles WHERE author_id = ?" userId
+```
+
+``` haskell
+main :: IO (Either String ())
+main = do
+  let dbPath = "users.db"
+  pools <-
+    SQL.newPools
+      =<< SQL.newPoolsConfig
+        (SQL.open dbPath) -- Action to create a new read connection.
+        60                -- Read connections' idle timeout in seconds.
+        32                -- Max number of read connections.
+        (SQL.open dbPath) -- Action to create a new write connection.
+        60                -- Write connections' idle timeout in seconds.
+
+  let app = void $ concurrently (void reader) writer
+
+  app
+    & SQL.runSQLiteWithPools pools
+    & runConcurrent
+    & runFail
+    & runEff
+```
+
+## Using multiple connections
+
+The package also provides ["labeled
+effects"](https://hackage-content.haskell.org/package/effectful-core/docs/Effectful-Labeled.html)
+for handling connections to multiple databases in the same application.
+
+See:
+
+- [`Effectful.SQLite.Simple.Labeled`](https://hackage.haskell.org/package/sqlite-simple-effectful/docs/Effectful-SQLite-Simple-Labeled.html)
+- [`Effectful.SQLite.Simple.RW.Labeled`](https://hackage.haskell.org/package/sqlite-simple-effectful/docs/Effectful-SQLite-Simple-RW-Labeled.html)
+
 ## Credits
 
 The API was inspired by
