@@ -1,0 +1,41 @@
+cabal-version: 2.2
+
+-- This file has been generated from package.yaml by hpack version 0.39.1.
+--
+-- see: https://github.com/sol/hpack
+
+name:           sqlite-simple-effectful-examples
+version:        0.1.0.0
+category:       Database
+homepage:       https://github.com/dcastro/sqlite-simple-effectful#readme
+bug-reports:    https://github.com/dcastro/sqlite-simple-effectful/issues
+author:         Diogo Castro
+maintainer:     dc@diogocastro.com
+copyright:      2026 Diogo Castro
+license:        BSD-3-Clause
+build-type:     Simple
+
+source-repository head
+  type: git
+  location: https://github.com/dcastro/sqlite-simple-effectful
+
+executable sqlite-simple-effectful-examples
+  main-is: Examples.hs
+  other-modules:
+      Paths_sqlite_simple_effectful_examples
+  autogen-modules:
+      Paths_sqlite_simple_effectful_examples
+  hs-source-dirs:
+      ./
+  default-extensions:
+      BlockArguments
+  ghc-options: -threaded -rtsopts -with-rtsopts=-N
+  build-depends:
+      async
+    , base
+    , effectful
+    , effectful-core
+    , sqlite-simple
+    , sqlite-simple-effectful
+    , temporary
+  default-language: GHC2024

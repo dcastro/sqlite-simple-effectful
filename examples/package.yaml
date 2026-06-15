@@ -1,0 +1,30 @@
+name: sqlite-simple-effectful-examples
+version: 0.1.0.0
+github: 'dcastro/sqlite-simple-effectful'
+license: BSD-3-Clause
+author: 'Diogo Castro'
+maintainer: 'dc@diogocastro.com'
+copyright: '2026 Diogo Castro'
+category: Database
+
+language: GHC2024
+
+default-extensions:
+  - BlockArguments
+
+executables:
+  sqlite-simple-effectful-examples:
+    main: Examples.hs
+    source-dirs: .
+    ghc-options:
+      - -threaded
+      - -rtsopts
+      - -with-rtsopts=-N
+    dependencies:
+      - base
+      - effectful
+      - effectful-core
+      - sqlite-simple
+      - sqlite-simple-effectful
+      - async
+      - temporary

@@ -3,3 +3,8 @@ resolver: nightly-2026-05-06
 packages:
   - .
   - docs
+  # NOTE: if the executable was placed in the same package as the library:
+  #   * They would both be uploaded to hackage
+  #   * Hackage would list both the executable's and the library's deps under "Dependencies"
+  # For those reasons, the examples executable is placed in its own package.
+  - examples
