@@ -33,6 +33,10 @@ process_includes() {
     while IFS= read -r line; do
         if [[ "$line" =~ ^@include:(.+\.lhs)@$ ]]; then
             included="${BASH_REMATCH[1]}"
+            if [[ ! -f "$src_dir/$included" ]]; then
+                echo "Error: included file '$src_dir/$included' does not exist" >&2
+                exit 1
+            fi
             pandoc \
                 "$src_dir/$included" \
                 --from markdown+lhs-smart --to gfm
