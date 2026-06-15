@@ -3,6 +3,7 @@
 
 module Main where
 
+import Control.Concurrent qualified as Conc
 import Control.Concurrent.Async qualified as Async
 import Control.Concurrent.MVar qualified as MVar
 import Control.Monad (forever)
@@ -14,7 +15,6 @@ import Effectful.SQLite.Simple (Connection, Only (..))
 import Effectful.SQLite.Simple qualified as S
 import Effectful.SQLite.Simple.Labeled qualified as L
 import Effectful.SQLite.Simple.RW qualified as RW
-import GHC.Conc qualified as Conc
 import System.Environment (getArgs)
 import System.Exit (die)
 import System.IO.Temp qualified as Temp

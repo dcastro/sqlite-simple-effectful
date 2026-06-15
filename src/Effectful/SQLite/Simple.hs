@@ -14,7 +14,7 @@ To connect to multiple databases, see "Effectful.SQLite.Simple.Labeled".
 >>> import Effectful.Concurrent (runConcurrent)
 >>> import Effectful.SQLite.Simple (SQLite)
 >>> import Effectful.SQLite.Simple qualified as SQL
->>> import GHC.MVar qualified as MVar
+>>> import Control.Concurrent.MVar qualified as MVar
 
 >>> :{
 app :: (SQLite :> es) => Eff es [User]

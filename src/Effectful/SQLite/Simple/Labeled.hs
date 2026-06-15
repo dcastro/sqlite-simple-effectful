@@ -15,7 +15,7 @@ Supported interpreters:
 >>> import Effectful.Concurrent (runConcurrent)
 >>> import Effectful.SQLite.Simple.Labeled (Labeled, SQLite)
 >>> import Effectful.SQLite.Simple.Labeled qualified as SQL
->>> import GHC.MVar qualified as MVar
+>>> import Control.Concurrent.MVar qualified as MVar
 
 >>> :{
 app ::

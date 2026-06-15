@@ -31,7 +31,7 @@ import Effectful.SQLite.Simple qualified as SQL
 import Effectful
 import Effectful.Concurrent (runConcurrent)
 import Data.Function ((&))
-import GHC.MVar qualified as MVar
+import Control.Concurrent.MVar qualified as MVar
 
 app :: (SQLite :> es) => Eff es [User]
 app = do
