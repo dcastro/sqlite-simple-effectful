@@ -5,6 +5,13 @@ license: BSD-3-Clause
 author: 'Diogo Castro'
 maintainer: 'dc@diogocastro.com'
 copyright: '2026 Diogo Castro'
+category: Database
+
+tested-with: GHC == 9.6.7
+  , GHC == 9.8.4
+  , GHC == 9.10.3
+  , GHC == 9.12.4
+  , GHC == 9.14.1
 
 extra-source-files:
   - README.md
@@ -55,7 +62,7 @@ when:
 library:
   source-dirs: src
   dependencies:
-    - base
+    - base < 5
     - effectful >= 2.4.0.0
     - effectful-core >= 2.4.0.0
     - sqlite-simple >= 0.4.19.0
