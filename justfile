@@ -17,11 +17,15 @@ checks:
 
 # Build the project with the lowest supported version of each dependency.
 min-deps:
+    # Previous versions of `effectful` didn't export the `Labeled` constructor
+    # Previous versions of `sqlite-simple` didn't have `withSavepoint`
+    # Previous versions of `unliftio-pool` didn't have `newPool`
     cabal build lib:sqlite-simple-effectful \
         --constraint='effectful ==2.4.0.0' \
         --constraint='effectful-core ==2.4.0.0' \
         --constraint='sqlite-simple ==0.4.19.0' \
         --constraint='unliftio-pool ==0.4.2.0' \
+        --constraint='text ==1.2.5.0' \
         --ghc-options="-Werror" \
         --with-compiler=ghc-9.6.7
 

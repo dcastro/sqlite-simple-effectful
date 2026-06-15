@@ -56,11 +56,11 @@ library:
   source-dirs: src
   dependencies:
     - base
-    - effectful
-    - effectful-core
-    - sqlite-simple
-    - unliftio-pool
-    - text
+    - effectful >= 2.4.0.0
+    - effectful-core >= 2.4.0.0
+    - sqlite-simple >= 0.4.19.0
+    - unliftio-pool >= 0.4.2.0
+    - text >= 1.2.5.0
 
 executables:
   sqlite-simple-effectful-examples:
